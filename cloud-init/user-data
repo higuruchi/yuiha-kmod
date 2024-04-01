@@ -1,0 +1,27 @@
+#cloud-config
+ssh_pwauth: false
+locale: en_US.UTF-8
+timezone: Asia/Tokyo
+users:
+  - name: ansible
+    gecos: Ansible execution user
+    groups: [sudo, adm, audio, cdrom, plugdev, dip]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    passwd: $6$k2tew/L4s45NQpT.$FFszAhu691yc9T75wcaqPIGw0886TihbictFH0f9E7Y/fKoEnkw26UZMckVF6jaiig0DC5JDeSTdEZUDiyc1C/
+    uid: 1000
+runcmd:
+  # add sshpubkey from gh
+  - [ sh, -c, ssh-import-id -o /home/ansible/.ssh/authorized_keys gh:higuruchi; chown -R ansible:ansible /home/ansible/.ssh/ ]
+device_aliases:
+  rootfs_disk: /dev/vda
+disk_setup:
+  rootfs_disk:
+    table_type: gpt
+    layout: true
+    overwrite: true
+fs_setup:
+  - label: rootfs
+    device: /dev/vda1
+    

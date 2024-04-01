@@ -1,0 +1,19 @@
+#cloud-config
+ssh_pwauth: false
+# disable_root: true
+
+locale: en_US.UTF-8
+timezone: Asia/Tokyo
+
+users:
+  - name: ansible
+    gecos: Ansible execution user
+    groups: [sudo, adm, audio, cdrom, plugdev, dip]
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: false
+    passwd: $6$k2tew/L4s45NQpT.$FFszAhu691yc9T75wcaqPIGw0886TihbictFH0f9E7Y/fKoEnkw26UZMckVF6jaiig0DC5JDeSTdEZUDiyc1C/
+    uid: 1000
+    ssh_import_id:
+        - gh:higuruchi
+
