@@ -936,6 +936,7 @@ extern const struct file_operations ext3_dir_operations;
 /* file.c */
 extern const struct inode_operations ext3_file_inode_operations;
 extern const struct file_operations ext3_file_operations;
+extern const struct file_operations yuiha_file_operations;
 
 /* namei.c */
 extern const struct inode_operations ext3_dir_inode_operations;
