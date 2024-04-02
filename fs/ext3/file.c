@@ -51,6 +51,13 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 	return 0;
 }
 
+static int yuiha_file_open(struct inode * inode, struct file *filp)
+{
+	printk("yuiha_file_open ino=%lu\n", inode->i_ino);
+	int ret = generic_file_open(inode, filp);
+	return ret;
+}
+
 const struct file_operations ext3_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= do_sync_read,
@@ -63,6 +70,24 @@ const struct file_operations ext3_file_operations = {
 #endif
 	.mmap		= generic_file_mmap,
 	.open		= generic_file_open,
+	.release	= ext3_release_file,
+	.fsync		= ext3_sync_file,
+	.splice_read	= generic_file_splice_read,
+	.splice_write	= generic_file_splice_write,
+};
+
+const struct file_operations yuiha_file_operations = {
+	.llseek		= generic_file_llseek,
+	.read		= do_sync_read,
+	.write		= do_sync_write,
+	.aio_read	= generic_file_aio_read,
+	.aio_write	= generic_file_aio_write,
+	.unlocked_ioctl	= ext3_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= ext3_compat_ioctl,
+#endif
+	.mmap		= generic_file_mmap,
+	.open		= yuiha_file_open,
 	.release	= ext3_release_file,
 	.fsync		= ext3_sync_file,
 	.splice_read	= generic_file_splice_read,

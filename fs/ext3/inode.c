@@ -40,6 +40,7 @@
 #include <linux/namei.h>
 #include "xattr.h"
 #include "acl.h"
+#include "super.h"
 
 static int ext3_writepage_trans_blocks(struct inode *inode);
 
@@ -2761,6 +2762,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	transaction_t *transaction;
 	long ret;
 	int block;
+	struct file_system_type *fs_type = sb->s_type;
 
 	inode = iget_locked(sb, ino);
 	if (!inode)
@@ -2889,8 +2891,11 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 		ei->i_extra_isize = 0;
 
 	if (S_ISREG(inode->i_mode)) {
+		if (ext3_judge_yuiha(fs_type))
+			inode->i_fop = &yuiha_file_operations;
+		else
+			inode->i_fop = &ext3_file_operations;
 		inode->i_op = &ext3_file_inode_operations;
-		inode->i_fop = &ext3_file_operations;
 		ext3_set_aops(inode);
 	} else if (S_ISDIR(inode->i_mode)) {
 		inode->i_op = &ext3_dir_inode_operations;

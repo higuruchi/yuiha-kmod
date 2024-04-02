@@ -43,6 +43,7 @@
 #include "xattr.h"
 #include "acl.h"
 #include "namei.h"
+#include "super.h"
 
 #ifdef CONFIG_EXT3_DEFAULTS_TO_ORDERED
   #define EXT3_MOUNT_DEFAULT_DATA_MODE EXT3_MOUNT_ORDERED_DATA
@@ -2701,6 +2702,16 @@ static int ext3_statfs (struct dentry * dentry, struct kstatfs * buf)
 	return 0;
 }
 
+int ext3_judge_yuiha(struct file_system_type *type)
+{
+	char *yuiha_name = "yuiha";
+	unsigned yuiha_len = strlen(type->name), fs_len = strlen(type->name);
+
+	if (yuiha_len == fs_len && strncmp(type->name, yuiha_name, yuiha_len) == 0)
+			return 1;
+	return 0;
+}
+
 /* Helper function for writing quotas on sync - we need to start transaction before quota file
  * is locked for write. Otherwise the are possible deadlocks:
  * Process 1                         Process 2
@@ -2991,6 +3002,14 @@ static struct file_system_type ext3_fs_type = {
 	.fs_flags	= FS_REQUIRES_DEV,
 };
 
+static struct file_system_type yuiha_fs_type = {
+	.owner = THIS_MODULE,
+	.name = "yuiha",
+	.get_sb = ext3_get_sb,
+	.kill_sb = kill_block_super,
+	.fs_flags = FS_REQUIRES_DEV,
+};
+
 static int __init init_ext3_fs(void)
 {
 	int err = init_ext3_xattr();
@@ -3000,6 +3019,7 @@ static int __init init_ext3_fs(void)
 	if (err)
 		goto out1;
         err = register_filesystem(&ext3_fs_type);
+        err = register_filesystem(&yuiha_fs_type);
 	if (err)
 		goto out;
 	return 0;
@@ -3013,6 +3033,7 @@ out1:
 static void __exit exit_ext3_fs(void)
 {
 	unregister_filesystem(&ext3_fs_type);
+	unregister_filesystem(&yuiha_fs_type);
 	destroy_inodecache();
 	exit_ext3_xattr();
 }
