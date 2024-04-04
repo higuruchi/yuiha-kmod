@@ -1802,8 +1802,49 @@ static int yuiha_copy_inode_info(
 	dst_inode->i_generation = src_inode->i_generation;
 	// dst_inode->i_state = src_inode->i_state;
 	dst_inode->i_flags = src_inode->i_flags;
-	ext3_set_aops(dst_inode);
+	// ext3_set_aops(dst_inode);
 	return 0;
+}
+
+static int
+yuiha_add_version_to_tree(
+				handle_t *handle,
+				struct yuiha_inode_info *new_version_yi,
+				struct yuiha_inode_info *target_version_yi)
+{
+	struct inode *parent_inode = NULL,
+							 *new_version_inode = &new_version_yi->i_ext3.vfs_inode,
+							 *target_version_inode = &target_version_yi->i_ext3.vfs_inode;
+	struct yuiha_inode_info *parent_yi;
+	struct suber_block *sb = target_version_inode->i_sb;
+	
+	new_version_yi->i_parent_ino = 0;
+	new_version_yi->i_sibling_ino = 0;
+	new_version_yi->i_child_ino = 0;
+
+	if (!target_version_yi->i_child_ino) {
+		// There is no child version
+	  if (target_version_yi->i_parent_ino) {
+	  	parent_inode = ext3_iget(sb, target_version_yi->i_parent_ino);
+	  	parent_yi = YUIHA_I(parent_inode);
+	  }
+
+	  new_version_yi->i_child_ino = target_version_inode->i_ino;
+	  if (parent_inode)
+	    new_version_yi->i_parent_ino = parent_inode->i_ino;
+
+	  target_version_yi->i_parent_ino = target_version_inode->i_ino;
+	  if (parent_inode)
+	  	parent_yi->i_child_ino = target_version_inode->i_ino;
+
+	  if (parent_inode) {
+	  	ext3_mark_inode_dirty(handle, parent_inode);
+	  	iput(parent_inode);	
+	  }
+	} else {
+		// There are children version
+		printk("branch versioning\n");
+	}
 }
 
 int yuiha_create_snapshot(struct file *filp)
@@ -1831,12 +1872,10 @@ int yuiha_create_snapshot(struct file *filp)
 		new_version_yi = YUIHA_I(new_version_i);
 
 		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
-		new_version_target_yi->i_parent_ino = 0x1234;
-		new_version_target_yi->i_child_ino = 0x1234;
-		new_version_target_yi->i_sibling_ino = 0x1234;
+		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
 
 		ext3_mark_inode_dirty(handle, new_version_target_i);
-		iput(new_version_target_i);
+		ext3_mark_inode_dirty(handle, new_version_i);
 	}
 
 	ext3_journal_stop(handle);
