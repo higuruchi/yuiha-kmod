@@ -60,15 +60,13 @@ $ make load
 ## How to use
 
 ```bash
-$ dd if=/dev/zero of=loop1.img bs=1M count=100
-$ sudo losetup /dev/loop0 loop1.img
+$ truncate -s 100M y.img && mkdir yuiha_mnt
+$ sudo losetup /dev/loop0 y.img
 $ sudo mke2fs -t ext3 -I 256 /dev/loop0
-$ mkdir yuiha_mnt
-$ sudo mount -t ext3 /dev/loop0 ./yuiha_mnt
-$ sudo chown master:master ./yuiha_mnt
-$ touch yuiha_mnt/hoge
+$ sudo mount -t yuiha /dev/loop0 ./yuiha_mnt
+$ sudo chown master ./yuiha_mnt
 $ echo fugafuga >> yuiha_mnt/hoge
-$ yuiha_util --snapshot=./yuiha_mnt/hoge
+$ yutil --snapshot=./yuiha_mnt/hoge
 $ echo mogemoge >> yuiha_mnt/hoge
 ```
 
