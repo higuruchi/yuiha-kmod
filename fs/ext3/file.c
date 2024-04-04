@@ -25,6 +25,9 @@
 #include <linux/ext3_jbd.h>
 #include "xattr.h"
 #include "acl.h"
+#include "namei.h"
+
+#define O_VERSION 04000000
 
 /*
  * Called when an inode is released. Note that this is different
@@ -55,6 +58,14 @@ static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
 	printk("yuiha_file_open ino=%lu\n", inode->i_ino);
 	int ret = generic_file_open(inode, filp);
+	if (ret)
+		return ret;
+
+	if (filp->f_flags & O_VERSION) {
+		printk("versioned!!\n");
+		yuiha_create_snapshot(filp);
+	}
+
 	return ret;
 }
 

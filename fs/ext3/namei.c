@@ -40,6 +40,7 @@
 #include "namei.h"
 #include "xattr.h"
 #include "acl.h"
+#include "super.h"
 
 /*
  * define how far ahead to read directories while searching them.
@@ -1695,6 +1696,7 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode,
 	handle_t *handle;
 	struct inode * inode;
 	int err, retries = 0;
+	struct file_system_type *fs_type = dir->i_sb->s_type;
 
 retry:
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS(dir->i_sb) +
@@ -1710,7 +1712,10 @@ retry:
 	err = PTR_ERR(inode);
 	if (!IS_ERR(inode)) {
 		inode->i_op = &ext3_file_inode_operations;
-		inode->i_fop = &ext3_file_operations;
+		if (ext3_judge_yuiha(fs_type))
+			inode->i_fop = &yuiha_file_operations;
+		else
+		  inode->i_fop = &ext3_file_operations;
 		ext3_set_aops(inode);
 		err = ext3_add_nondir(handle, dentry, inode);
 	}
@@ -1753,6 +1758,89 @@ retry:
 	if (err == -ENOSPC && ext3_should_retry_alloc(dir->i_sb, &retries))
 		goto retry;
 	return err;
+}
+
+static int yuiha_copy_inode_info(
+				struct yuiha_inode_info *dst_yuiha_ei,
+				struct yuiha_inode_info *src_yuiha_ei)
+{
+	struct ext3_inode_info *dst_ext3_ei = &dst_yuiha_ei->i_ext3,
+												 *src_ext3_ei = &src_yuiha_ei->i_ext3;
+	struct inode *dst_inode = &dst_ext3_ei->vfs_inode,
+							 *src_inode = &src_ext3_ei->vfs_inode;
+	
+	memcpy(dst_ext3_ei->i_data,
+					src_ext3_ei->i_data,
+					sizeof(dst_ext3_ei->i_data));
+	dst_ext3_ei->i_flags = src_ext3_ei->i_flags;
+	dst_ext3_ei->i_file_acl = src_ext3_ei->i_file_acl;
+	dst_ext3_ei->i_dir_acl = src_ext3_ei->i_dir_acl;
+	dst_ext3_ei->i_dtime = src_ext3_ei->i_dtime;
+	dst_ext3_ei->i_block_group = src_ext3_ei->i_block_group;
+	// dst_ext3_ei->i_state = src_ext3_ei->i_state;
+	dst_ext3_ei->i_block_alloc_info = src_ext3_ei->i_block_alloc_info;
+	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
+	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
+
+	dst_inode->i_mode = src_inode->i_mode;
+	dst_inode->i_nlink = 1;
+	dst_inode->i_uid = src_inode->i_uid;
+	dst_inode->i_gid = src_inode->i_gid;
+	dst_inode->i_rdev = src_inode->i_rdev;
+	dst_inode->i_size = 0;
+	dst_inode->i_atime = src_inode->i_atime;
+	dst_inode->i_mtime = src_inode->i_mtime;
+	dst_inode->i_ctime = src_inode->i_ctime;
+	dst_inode->i_blkbits = src_inode->i_blkbits;
+	dst_inode->i_version = src_inode->i_version;
+	dst_inode->i_blocks = 0;
+  dst_inode->i_bytes = 0;
+	dst_inode->i_op = &ext3_file_operations;
+	dst_inode->i_fop = &yuiha_file_operations;
+	dst_inode->i_sb = src_inode->i_sb;
+	dst_inode->i_bdev = src_inode->i_bdev;
+	dst_inode->i_generation = src_inode->i_generation;
+	// dst_inode->i_state = src_inode->i_state;
+	dst_inode->i_flags = src_inode->i_flags;
+	ext3_set_aops(dst_inode);
+	return 0;
+}
+
+int yuiha_create_snapshot(struct file *filp)
+{
+	int err;
+	struct inode *new_version_i,
+							 *new_version_target_i = filp->f_dentry->d_inode,
+						   *dir_i = filp->f_dentry->d_parent->d_inode;
+	struct yuiha_inode_info *new_version_target_yi, *new_version_yi;
+	handle_t *handle;
+
+	handle = ext3_journal_start(dir_i, EXT3_DATA_TRANS_BLOCKS(dir_i->i_sb) +
+					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3 +
+					2 * EXT3_QUOTA_INIT_BLOCKS(dir_i->i_sb));
+	if (IS_ERR(handle))
+		return PTR_ERR(handle);
+
+	new_version_i = ext3_new_inode(handle,
+					dir_i,
+					new_version_target_i->i_mode);
+	err = PTR_ERR(new_version_i);
+
+	if (!IS_ERR(new_version_i)) {
+		new_version_target_yi = YUIHA_I(new_version_target_i);
+		new_version_yi = YUIHA_I(new_version_i);
+
+		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
+		new_version_target_yi->i_parent_ino = 0x1234;
+		new_version_target_yi->i_child_ino = 0x1234;
+		new_version_target_yi->i_sibling_ino = 0x1234;
+
+		ext3_mark_inode_dirty(handle, new_version_target_i);
+		iput(new_version_target_i);
+	}
+
+	ext3_journal_stop(handle);
+	return 0;
 }
 
 static int ext3_mkdir(struct inode * dir, struct dentry * dentry, int mode)
