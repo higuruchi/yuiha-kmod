@@ -148,4 +148,12 @@ struct ext3_inode_info {
 	struct inode vfs_inode;
 };
 
+struct yuiha_inode_info {
+	struct ext3_inode_info i_ext3;
+	__u32 i_parent_ino;
+	__u32 i_sibling_ino;
+	__u32 i_child_ino;
+};
+
 #endif	/* _LINUX_EXT3_FS_I */
+

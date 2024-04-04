@@ -454,6 +454,7 @@ static void ext3_put_super (struct super_block * sb)
 }
 
 static struct kmem_cache *ext3_inode_cachep;
+static struct kmem_cache *yuiha_inode_cachep;
 
 /*
  * Called inside transaction, so use GFP_NOFS
@@ -461,10 +462,20 @@ static struct kmem_cache *ext3_inode_cachep;
 static struct inode *ext3_alloc_inode(struct super_block *sb)
 {
 	struct ext3_inode_info *ei;
+	struct yuiha_inode_info *yi;
+	struct file_system_type *fs_type = sb->s_type;
 
-	ei = kmem_cache_alloc(ext3_inode_cachep, GFP_NOFS);
-	if (!ei)
-		return NULL;
+	if (ext3_judge_yuiha(fs_type)) {
+		yi = kmem_cache_alloc(yuiha_inode_cachep, GFP_NOFS);
+		if (!yi)
+				return NULL;
+		ei = &yi->i_ext3;
+	} else {
+		ei = kmem_cache_alloc(ext3_inode_cachep, GFP_NOFS);
+		if (!ei)
+			return NULL;
+
+	}
 	ei->i_block_alloc_info = NULL;
 	ei->vfs_inode.i_version = 1;
 	atomic_set(&ei->i_datasync_tid, 0);
@@ -474,6 +485,8 @@ static struct inode *ext3_alloc_inode(struct super_block *sb)
 
 static void ext3_destroy_inode(struct inode *inode)
 {
+	struct file_system_type *fs_type = inode->i_sb->s_type;
+
 	if (!list_empty(&(EXT3_I(inode)->i_orphan))) {
 		printk("EXT3 Inode %p: orphan list check failed!\n",
 			EXT3_I(inode));
@@ -482,7 +495,11 @@ static void ext3_destroy_inode(struct inode *inode)
 				false);
 		dump_stack();
 	}
-	kmem_cache_free(ext3_inode_cachep, EXT3_I(inode));
+
+	if (ext3_judge_yuiha(fs_type))
+		kmem_cache_free(yuiha_inode_cachep, YUIHA_I(inode));
+	else
+		kmem_cache_free(ext3_inode_cachep, EXT3_I(inode));
 }
 
 static void init_once(void *foo)
@@ -504,7 +521,12 @@ static int init_inodecache(void)
 					     0, (SLAB_RECLAIM_ACCOUNT|
 						SLAB_MEM_SPREAD),
 					     init_once);
-	if (ext3_inode_cachep == NULL)
+	yuiha_inode_cachep = kmem_cache_create("yuiha_inode_cache",
+					     sizeof(struct yuiha_inode_info),
+					     0, (SLAB_RECLAIM_ACCOUNT|
+						SLAB_MEM_SPREAD),
+					     init_once);
+	if (ext3_inode_cachep == NULL || yuiha_inode_cachep == NULL)
 		return -ENOMEM;
 	return 0;
 }
@@ -512,6 +534,7 @@ static int init_inodecache(void)
 static void destroy_inodecache(void)
 {
 	kmem_cache_destroy(ext3_inode_cachep);
+	kmem_cache_destroy(yuiha_inode_cachep);
 }
 
 static void ext3_clear_inode(struct inode *inode)

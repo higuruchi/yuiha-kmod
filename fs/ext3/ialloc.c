@@ -28,6 +28,7 @@
 
 #include "xattr.h"
 #include "acl.h"
+#include "super.h"
 
 /*
  * ialloc.c contains the inodes allocation and deallocation routines
@@ -427,6 +428,7 @@ struct inode *ext3_new_inode(handle_t *handle, struct inode * dir, int mode)
 	struct ext3_group_desc * gdp = NULL;
 	struct ext3_super_block * es;
 	struct ext3_inode_info *ei;
+	struct yuiha_inode_info *yi;
 	struct ext3_sb_info *sbi;
 	int err = 0;
 	struct inode *ret;
@@ -440,7 +442,16 @@ struct inode *ext3_new_inode(handle_t *handle, struct inode * dir, int mode)
 	inode = new_inode(sb);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
-	ei = EXT3_I(inode);
+
+	if (ext3_judge_yuiha(sb->s_type)) {
+		yi = YUIHA_I(inode);
+		yi->i_parent_ino = 0;
+		yi->i_sibling_ino = 0;
+		yi->i_child_ino = 0;
+		ei = &yi->i_ext3;
+	} else {
+		ei = EXT3_I(inode);
+	}
 
 	sbi = EXT3_SB(sb);
 	es = sbi->s_es;

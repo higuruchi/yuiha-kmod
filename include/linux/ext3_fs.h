@@ -283,7 +283,7 @@ struct ext3_mount_options {
 };
 
 /*
- * Structure of an inode on the disk
+ * Structure of an Ext3 inode on the disk
  */
 struct ext3_inode {
 	__le16	i_mode;		/* File mode */
@@ -339,6 +339,16 @@ struct ext3_inode {
 	} osd2;				/* OS dependent 2 */
 	__le16	i_extra_isize;
 	__le16	i_pad1;
+};
+
+/*
+ * Structure of an YuihaFS inode on the disk
+ */
+struct yuiha_inode {
+	struct ext3_inode i_ext3;
+	__le32 i_parent_ino;
+	__le32 i_sibling_ino;
+	__le32 i_child_ino;
 };
 
 #define i_size_high	i_dir_acl
@@ -550,6 +560,11 @@ static inline struct ext3_sb_info * EXT3_SB(struct super_block *sb)
 static inline struct ext3_inode_info *EXT3_I(struct inode *inode)
 {
 	return container_of(inode, struct ext3_inode_info, vfs_inode);
+}
+static inline struct yuiha_inode_info *YUIHA_I(struct inode *inode)
+{
+	struct ext3_inode_info *ei = EXT3_I(inode);
+	return container_of(ei, struct yuiha_inode_info, i_ext3);
 }
 
 static inline int ext3_valid_inum(struct super_block *sb, unsigned long ino)

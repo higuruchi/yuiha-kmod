@@ -2755,7 +2755,9 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 {
 	struct ext3_iloc iloc;
 	struct ext3_inode *raw_inode;
+	struct yuiha_inode *yuiha_raw_inode;
 	struct ext3_inode_info *ei;
+	struct yuiha_inode_info *yi = NULL;
 	struct buffer_head *bh;
 	struct inode *inode;
 	journal_t *journal = EXT3_SB(sb)->s_journal;
@@ -2770,14 +2772,24 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	if (!(inode->i_state & I_NEW))
 		return inode;
 
-	ei = EXT3_I(inode);
+	if (ext3_judge_yuiha(fs_type)) {
+		yi = YUIHA_I(inode);
+		ei = &yi->i_ext3;
+	} else {
+		ei = EXT3_I(inode);
+	}
+
 	ei->i_block_alloc_info = NULL;
 
 	ret = __ext3_get_inode_loc(inode, &iloc, 0);
 	if (ret < 0)
 		goto bad_inode;
 	bh = iloc.bh;
+
 	raw_inode = ext3_raw_inode(&iloc);
+	if (yi) {
+		yuiha_raw_inode = raw_inode;
+	}
 	inode->i_mode = le16_to_cpu(raw_inode->i_mode);
 	inode->i_uid = (uid_t)le16_to_cpu(raw_inode->i_uid_low);
 	inode->i_gid = (gid_t)le16_to_cpu(raw_inode->i_gid_low);
@@ -2891,10 +2903,14 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 		ei->i_extra_isize = 0;
 
 	if (S_ISREG(inode->i_mode)) {
-		if (ext3_judge_yuiha(fs_type))
+		if (ext3_judge_yuiha(fs_type)) {
 			inode->i_fop = &yuiha_file_operations;
-		else
+			yi->i_parent_ino = le32_to_cpu(yuiha_raw_inode->i_parent_ino);
+			yi->i_sibling_ino = le32_to_cpu(yuiha_raw_inode->i_sibling_ino);
+			yi->i_child_ino = le32_to_cpu(yuiha_raw_inode->i_child_ino);
+		} else {
 			inode->i_fop = &ext3_file_operations;
+		}
 		inode->i_op = &ext3_file_inode_operations;
 		ext3_set_aops(inode);
 	} else if (S_ISDIR(inode->i_mode)) {
@@ -2940,9 +2956,19 @@ static int ext3_do_update_inode(handle_t *handle,
 				struct ext3_iloc *iloc)
 {
 	struct ext3_inode *raw_inode = ext3_raw_inode(iloc);
-	struct ext3_inode_info *ei = EXT3_I(inode);
+	struct yuiha_inode *yuiha_raw_inode = raw_inode;
+	struct ext3_inode_info *ei = NULL;
+	struct yuiha_inode_info *yi = NULL;
 	struct buffer_head *bh = iloc->bh;
+	struct file_system_type *fs_type = inode->i_sb->s_type;
 	int err = 0, rc, block;
+
+	if (ext3_judge_yuiha(fs_type)) {
+		yi = YUIHA_I(inode);
+		ei = &yi->i_ext3;
+	} else {
+		ei = EXT3_I(inode);
+	}
 
 again:
 	/* we can't allow multiple procs in here at once, its a bit racey */
@@ -3041,6 +3067,12 @@ again:
 
 	if (ei->i_extra_isize)
 		raw_inode->i_extra_isize = cpu_to_le16(ei->i_extra_isize);
+
+	if (yi) {
+		yuiha_raw_inode->i_parent_ino = cpu_to_le32(yi->i_parent_ino);
+		yuiha_raw_inode->i_sibling_ino = cpu_to_le32(yi->i_sibling_ino);
+		yuiha_raw_inode->i_child_ino = cpu_to_le32(yi->i_child_ino);
+	}
 
 	BUFFER_TRACE(bh, "call ext3_journal_dirty_metadata");
 	unlock_buffer(bh);
