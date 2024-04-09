@@ -36,6 +36,7 @@
 #include <linux/quotaops.h>
 #include <linux/buffer_head.h>
 #include <linux/bio.h>
+#include <linux/ext3_fs_i.h>
 
 #include "namei.h"
 #include "xattr.h"
@@ -1033,11 +1034,38 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, str
 	struct inode * inode;
 	struct ext3_dir_entry_2 * de;
 	struct buffer_head * bh;
+	const char *name = dentry->d_name.name;
+	char *date = NULL;
 
 	if (dentry->d_name.len > EXT3_NAME_LEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
-	bh = ext3_find_entry(dir, &dentry->d_name, &de);
+	date = strstr(name, "@");
+	if (date) {
+		struct qstr tmp_entry;
+		int file_only_name_len = date - name;
+		struct inode *inode;
+		unsigned long ino;
+		struct yuiha_inode_info *yi;
+
+		tmp_entry.name = name;
+		tmp_entry.len = file_only_name_len;
+		tmp_entry.hash = full_name_hash(name, file_only_name_len);
+
+		bh = ext3_find_entry(dir, &tmp_entry, &de);
+
+		ino = le32_to_cpu(de->inode);
+		inode = ext3_iget(dir->i_sb, ino);
+		yi = YUIHA_I(inode);
+
+		de->inode = cpu_to_le32(yi->i_parent_ino);
+		//strncpy(de->name, name, dentry->d_name.len);
+
+	  printk("ext3_lookup: %s, %lu\n", date, le32_to_cpu(de->inode));
+	} else {
+	  bh = ext3_find_entry(dir, &dentry->d_name, &de);
+	}
+
 	inode = NULL;
 	if (bh) {
 		unsigned long ino = le32_to_cpu(de->inode);
@@ -1787,14 +1815,14 @@ static int yuiha_copy_inode_info(
 	dst_inode->i_uid = src_inode->i_uid;
 	dst_inode->i_gid = src_inode->i_gid;
 	dst_inode->i_rdev = src_inode->i_rdev;
-	dst_inode->i_size = 0;
+	dst_inode->i_size = src_inode->i_size;
 	dst_inode->i_atime = src_inode->i_atime;
 	dst_inode->i_mtime = src_inode->i_mtime;
 	dst_inode->i_ctime = src_inode->i_ctime;
 	dst_inode->i_blkbits = src_inode->i_blkbits;
 	dst_inode->i_version = src_inode->i_version;
-	dst_inode->i_blocks = 0;
-  dst_inode->i_bytes = 0;
+	dst_inode->i_blocks = src_inode->i_blocks;
+  dst_inode->i_bytes = src_inode->i_bytes;
 	dst_inode->i_op = &ext3_file_operations;
 	dst_inode->i_fop = &yuiha_file_operations;
 	dst_inode->i_sb = src_inode->i_sb;
@@ -1802,7 +1830,7 @@ static int yuiha_copy_inode_info(
 	dst_inode->i_generation = src_inode->i_generation;
 	// dst_inode->i_state = src_inode->i_state;
 	dst_inode->i_flags = src_inode->i_flags;
-	// ext3_set_aops(dst_inode);
+	ext3_set_aops(dst_inode);
 	return 0;
 }
 
@@ -1833,7 +1861,7 @@ yuiha_add_version_to_tree(
 	  if (parent_inode)
 	    new_version_yi->i_parent_ino = parent_inode->i_ino;
 
-	  target_version_yi->i_parent_ino = target_version_inode->i_ino;
+	  target_version_yi->i_parent_ino = new_version_inode->i_ino;
 	  if (parent_inode)
 	  	parent_yi->i_child_ino = target_version_inode->i_ino;
 
@@ -1854,6 +1882,7 @@ int yuiha_create_snapshot(struct file *filp)
 							 *new_version_target_i = filp->f_dentry->d_inode,
 						   *dir_i = filp->f_dentry->d_parent->d_inode;
 	struct yuiha_inode_info *new_version_target_yi, *new_version_yi;
+	//struct super_block *sb = new_version_target_i->i_sb;
 	handle_t *handle;
 
 	handle = ext3_journal_start(dir_i, EXT3_DATA_TRANS_BLOCKS(dir_i->i_sb) +
@@ -1875,9 +1904,11 @@ int yuiha_create_snapshot(struct file *filp)
 		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
 
 		ext3_mark_inode_dirty(handle, new_version_target_i);
-		ext3_mark_inode_dirty(handle, new_version_i);
+		//ext3_mark_inode_dirty(handle, new_version_i);
+		//sb->s_op->destroy_inode(new_version_i);
+	  unlock_new_inode(new_version_i);
 	}
-
+	
 	ext3_journal_stop(handle);
 	return 0;
 }
