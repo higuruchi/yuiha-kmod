@@ -402,8 +402,8 @@ no_block:
 	return p;
 }
 
-static Indirect *yuiha_get_branch(struct inode *inode, int depth, int *offsets,
-				 Indirect chain[4], int *err)
+static Indirect *yuiha_get_branch(struct inode *inode, int depth,
+				int *offsets, Indirect chain[4], int *err)
 {
 	struct super_block *sb = inode->i_sb;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
@@ -417,7 +417,6 @@ static Indirect *yuiha_get_branch(struct inode *inode, int depth, int *offsets,
 	if (S_ISREG(inode->i_mode) && is_not_journal_file)
 		chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
 
-	printk("yuiha_get_branch 420 %d\n", p->key);
 	if (!p->key)
 		goto no_block;
 	while (--depth) {
@@ -694,9 +693,7 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 		branch[n].p = (__le32 *) bh->b_data + offsets[n];
 		branch[n].key = cpu_to_le32(new_blocks[n]);
 		*branch[n].p = branch[n].key;
-		printk("ext3_alloc_branch:697 %d %d \n", is_yuiha, is_not_journal_file);
 		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
-			printk("ext3_alloc_branch:697 %d %d \n", *branch[n].p, branch[n].key);
 			*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
 		}
 
@@ -763,7 +760,6 @@ static int ext3_splice_branch(handle_t *handle, struct inode *inode,
 	int is_yuiha = ext3_judge_yuiha(fs_type),
 			is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
-	printk("ext3_splice_branch 765\n");
 	block_i = ei->i_block_alloc_info;
 	/*
 	 * If we're splicing into a [td]indirect block (as opposed to the
@@ -968,21 +964,17 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		goto out;
 
 	if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
-		printk("ext3_get_blocks_handle 970%d %d\n", is_yuiha, is_not_journal_file);
 		partial = yuiha_get_branch(inode, depth, offsets, chain, &err);
-		printk("ext3_get_blocks_handle 972 %p\n", partial);
 	} else {
 		partial = ext3_get_branch(inode, depth, offsets, chain, &err);
 	}	
 
 	/* Simplest case - block found, no allocation needed */
-	printk("ext3_get_blocks_handle 974\n");
 	if (!partial) {
 		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			mutex_lock(&ei->truncate_mutex);
-			printk("ext3_get_blocks_handle 979 \n");
-			yuiha_cow_datablock(handle, inode, iblock, maxblocks, blocks_to_boundary,
-							depth, offsets, chain); 
+			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
+							blocks_to_boundary, depth, offsets, chain); 
 			mutex_unlock(&ei->truncate_mutex);
 		}
 
@@ -1067,7 +1059,6 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	/* the number of blocks need to allocate for [d,t]indirect blocks */
 	indirect_blks = (chain + depth) - partial - 1;
 
-	printk("ext3_get_blocks_handle 1064\n");
 	/*
 	 * Next look up the indirect map to count the totoal number of
 	 * direct blocks to allocate for this branch.
