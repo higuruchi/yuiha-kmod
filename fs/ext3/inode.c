@@ -41,6 +41,7 @@
 #include "xattr.h"
 #include "acl.h"
 #include "super.h"
+#include "yuiha_buffer_head.h"
 
 static int ext3_writepage_trans_blocks(struct inode *inode);
 
@@ -401,6 +402,49 @@ no_block:
 	return p;
 }
 
+static Indirect *yuiha_get_branch(struct inode *inode, int depth,
+				int *offsets, Indirect chain[4], int *err)
+{
+	struct super_block *sb = inode->i_sb;
+	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
+	Indirect *p = chain;
+	struct buffer_head *bh;
+	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
+
+	*err = 0;
+	/* i_data is not going away, no lock needed */
+	add_chain (chain, NULL, EXT3_I(inode)->i_data + *offsets);
+	if (S_ISREG(inode->i_mode) && is_not_journal_file)
+		chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
+
+	if (!p->key)
+		goto no_block;
+	while (--depth) {
+		bh = sb_bread(sb, le32_to_cpu(p->key));
+		if (!bh)
+			goto failure;
+		/* Reader: pointers */
+		if (!verify_chain(chain, p))
+			goto changed;
+		add_chain(++p, bh, (__le32*)bh->b_data + *++offsets);
+	  if (S_ISREG(inode->i_mode) && es->s_journal_inum != inode->i_ino)
+		  chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
+		/* Reader: end */
+		if (!p->key)
+			goto no_block;
+	}
+	return NULL;
+
+changed:
+	brelse(bh);
+	*err = -EAGAIN;
+	goto no_block;
+failure:
+	*err = -EIO;
+no_block:
+	return p;
+}
+
 /**
  *	ext3_find_near - find a place for allocation with sufficient locality
  *	@inode: owner
@@ -613,6 +657,11 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 	int num;
 	ext3_fsblk_t new_blocks[4];
 	ext3_fsblk_t current_block;
+	struct super_block *sb = inode->i_sb;
+	struct file_system_type *fs_type = sb->s_type;
+	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
+	int is_yuiha = ext3_judge_yuiha(fs_type),
+			is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
 	num = ext3_alloc_blocks(handle, inode, goal, indirect_blks,
 				*blks, new_blocks, &err);
@@ -644,6 +693,10 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 		branch[n].p = (__le32 *) bh->b_data + offsets[n];
 		branch[n].key = cpu_to_le32(new_blocks[n]);
 		*branch[n].p = branch[n].key;
+		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
+			*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
+		}
+
 		if ( n == indirect_blks) {
 			current_block = new_blocks[n];
 			/*
@@ -652,7 +705,7 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 			 * data blocks numbers
 			 */
 			for (i=1; i < num; i++)
-				*(branch[n].p + i) = cpu_to_le32(++current_block);
+				*(branch[n].p + i) = cpu_to_le32(set_producer_flg(++current_block));
 		}
 		BUFFER_TRACE(bh, "marking uptodate");
 		set_buffer_uptodate(bh);
@@ -701,6 +754,11 @@ static int ext3_splice_branch(handle_t *handle, struct inode *inode,
 	struct ext3_block_alloc_info *block_i;
 	ext3_fsblk_t current_block;
 	struct ext3_inode_info *ei = EXT3_I(inode);
+	struct super_block *sb = inode->i_sb;
+	struct file_system_type *fs_type = sb->s_type;
+	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
+	int is_yuiha = ext3_judge_yuiha(fs_type),
+			is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
 	block_i = ei->i_block_alloc_info;
 	/*
@@ -716,7 +774,10 @@ static int ext3_splice_branch(handle_t *handle, struct inode *inode,
 	}
 	/* That's it */
 
-	*where->p = where->key;
+	if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file)
+		*where->p = cpu_to_le32(set_producer_flg(le32_to_cpu(where->key)));
+	else
+		*where->p = where->key;
 
 	/*
 	 * Update the host buffer_head or inode to point to more just allocated
@@ -724,8 +785,13 @@ static int ext3_splice_branch(handle_t *handle, struct inode *inode,
 	 */
 	if (num == 0 && blks > 1) {
 		current_block = le32_to_cpu(where->key) + 1;
-		for (i = 1; i < blks; i++)
-			*(where->p + i ) = cpu_to_le32(current_block++);
+		for (i = 1; i < blks; i++) {
+			if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file)
+				*(where->p + i ) = cpu_to_le32(set_producer_flg(current_block));
+			else
+				*(where->p + i ) = cpu_to_le32(current_block);
+			current_block++;
+		}
 	}
 
 	/*
@@ -781,6 +847,74 @@ err_out:
 	return err;
 }
 
+static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
+				sector_t iblock, unsigned long maxblocks, int blocks_to_boundary,
+				int depth, int offsets[4], Indirect chain[4])
+{
+	int cow_block_pointer_offset, cow_datablock_count, i, j,
+			indirect_blks, err = -EIO;
+	Indirect cow_chain[4] = {0};
+	Indirect *partial, *cow_partial;
+	ext3_fsblk_t goal;
+	struct super_block *sb = inode->i_sb;
+
+	for (cow_block_pointer_offset = 0; cow_block_pointer_offset < depth;
+					cow_block_pointer_offset += 1) {
+		cow_chain[cow_block_pointer_offset].p = chain[cow_block_pointer_offset].p;
+		cow_chain[cow_block_pointer_offset].key = chain[cow_block_pointer_offset].key;
+		if (!chain[cow_block_pointer_offset].bh)
+			cow_chain[cow_block_pointer_offset].bh =
+					sb_getblk(inode->i_sb, chain[cow_block_pointer_offset].key);
+		if (!test_producer_flg(le32_to_cpu(*chain[cow_block_pointer_offset].p)))
+			break;
+	}
+
+	if (cow_block_pointer_offset == depth) {
+		for (i = 1; i < depth; i += 1) {
+			if (cow_chain[i].bh)
+				brelse(cow_chain[i].bh);
+		}
+		return 0;
+	}
+
+	partial = &chain[cow_block_pointer_offset];
+	cow_partial = &cow_chain[cow_block_pointer_offset];
+	indirect_blks = (chain + depth) - partial - 1;
+	cow_datablock_count = ext3_blks_to_allocate(cow_partial, indirect_blks,
+					maxblocks, blocks_to_boundary);
+
+	goal = ext3_find_goal(inode, iblock, cow_partial);
+	err = ext3_alloc_branch(handle, inode, indirect_blks, &cow_datablock_count, goal,
+					offsets + cow_block_pointer_offset, cow_partial);
+	if (err)
+		return err;
+
+	ext3_splice_branch(handle, inode, iblock, cow_partial, indirect_blks, cow_datablock_count);
+
+	// copy indirect
+	for (i = 1; i < cow_datablock_count + indirect_blks - cow_block_pointer_offset; i += 1) {
+		__le32 bn = *cow_partial[i].p;
+		memcpy(cow_partial[i].bh->b_data, partial[i].bh->b_data,
+						cow_partial[i].bh->b_size);
+
+		__le32 *key_p = cow_partial[i].bh->b_data;
+		for(j = 0; j < EXT3_ADDR_PER_BLOCK(sb); j += 1) {
+			*key_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*key_p)));
+			key_p++;
+		}
+
+		*cow_partial[i].p = bn;
+	}
+
+	partial[0] = cow_partial[0];
+	for (i = 1; i < cow_datablock_count + indirect_blks - cow_block_pointer_offset; i += 1) {
+		brelse(partial[i].bh);
+		partial[i] = cow_partial[i];
+	}
+
+	return err;
+}
+
 /*
  * Allocation strategy is simple: if we have to allocate something, we will
  * have to go the whole way to leaf. So let's do it before attaching anything
@@ -806,8 +940,8 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		int create)
 {
 	int err = -EIO;
-	int offsets[4];
-	Indirect chain[4];
+	int offsets[4] = {0};
+	Indirect chain[4] = {0};
 	Indirect *partial;
 	ext3_fsblk_t goal;
 	int indirect_blks;
@@ -816,6 +950,11 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	struct ext3_inode_info *ei = EXT3_I(inode);
 	int count = 0;
 	ext3_fsblk_t first_block = 0;
+	struct super_block *sb = inode->i_sb;
+	struct file_system_type *fs_type = sb->s_type;
+	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
+	int is_yuiha = ext3_judge_yuiha(fs_type),
+			is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
 
 	J_ASSERT(handle != NULL || create == 0);
@@ -824,10 +963,21 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	if (depth == 0)
 		goto out;
 
-	partial = ext3_get_branch(inode, depth, offsets, chain, &err);
+	if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
+		partial = yuiha_get_branch(inode, depth, offsets, chain, &err);
+	} else {
+		partial = ext3_get_branch(inode, depth, offsets, chain, &err);
+	}	
 
 	/* Simplest case - block found, no allocation needed */
 	if (!partial) {
+		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
+			mutex_lock(&ei->truncate_mutex);
+			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
+							blocks_to_boundary, depth, offsets, chain); 
+			mutex_unlock(&ei->truncate_mutex);
+		}
+
 		first_block = le32_to_cpu(chain[depth - 1].key);
 		clear_buffer_new(bh_result);
 		count++;
@@ -881,7 +1031,12 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 			brelse(partial->bh);
 			partial--;
 		}
-		partial = ext3_get_branch(inode, depth, offsets, chain, &err);
+
+		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file)
+			partial = yuiha_get_branch(inode, depth, offsets, chain, &err);
+		else
+			partial = ext3_get_branch(inode, depth, offsets, chain, &err);
+
 		if (!partial) {
 			count++;
 			mutex_unlock(&ei->truncate_mutex);
@@ -1163,6 +1318,9 @@ static int ext3_write_begin(struct file *file, struct address_space *mapping,
 	struct page *page;
 	pgoff_t index;
 	unsigned from, to;
+	struct super_block *sb = inode->i_sb;
+	struct file_system_type *fs_type = sb->s_type;
+	int is_yuiha = ext3_judge_yuiha(fs_type);
 	/* Reserve one block more for addition to orphan list in case
 	 * we allocate blocks but write fails for some reason */
 	int needed_blocks = ext3_writepage_trans_blocks(inode) + 1;
@@ -1184,8 +1342,15 @@ retry:
 		ret = PTR_ERR(handle);
 		goto out;
 	}
-	ret = block_write_begin(file, mapping, pos, len, flags, pagep, fsdata,
+	
+	if (is_yuiha) {
+		ret = yuiha_block_write_begin(file, mapping, pos, len, flags,
+						pagep, fsdata, ext3_get_block);
+	} else {
+		ret = block_write_begin(file, mapping, pos, len, flags, pagep, fsdata,
 							ext3_get_block);
+	}
+
 	if (ret)
 		goto write_begin_failed;
 

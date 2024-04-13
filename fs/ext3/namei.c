@@ -36,11 +36,13 @@
 #include <linux/quotaops.h>
 #include <linux/buffer_head.h>
 #include <linux/bio.h>
+#include <linux/pagevec.h>
 
 #include "namei.h"
 #include "xattr.h"
 #include "acl.h"
 #include "super.h"
+#include "yuiha_buffer_head.h"
 
 /*
  * define how far ahead to read directories while searching them.
@@ -1806,6 +1808,17 @@ static int yuiha_copy_inode_info(
 	return 0;
 }
 
+static void yuiha_clear_producer_flg(struct inode *version_i)
+{
+	int i;
+	struct ext3_inode_info *ei = EXT3_I(version_i);
+
+	for (i = 0; i < EXT3_N_BLOCKS; i++) {
+		ei->i_data[i] = 
+				cpu_to_le32(clear_producer_flg(le32_to_cpu(ei->i_data[i])));	
+	}
+}
+
 static int
 yuiha_add_version_to_tree(
 				handle_t *handle,
@@ -1816,7 +1829,7 @@ yuiha_add_version_to_tree(
 							 *new_version_inode = &new_version_yi->i_ext3.vfs_inode,
 							 *target_version_inode = &target_version_yi->i_ext3.vfs_inode;
 	struct yuiha_inode_info *parent_yi;
-	struct suber_block *sb = target_version_inode->i_sb;
+	struct super_block *sb = target_version_inode->i_sb;
 	
 	new_version_yi->i_parent_ino = 0;
 	new_version_yi->i_sibling_ino = 0;
@@ -1833,7 +1846,7 @@ yuiha_add_version_to_tree(
 	  if (parent_inode)
 	    new_version_yi->i_parent_ino = parent_inode->i_ino;
 
-	  target_version_yi->i_parent_ino = target_version_inode->i_ino;
+	  target_version_yi->i_parent_ino = new_version_inode->i_ino;
 	  if (parent_inode)
 	  	parent_yi->i_child_ino = target_version_inode->i_ino;
 
@@ -1845,6 +1858,69 @@ yuiha_add_version_to_tree(
 		// There are children version
 		printk("branch versioning\n");
 	}
+
+	return 0;
+}
+
+int yuiha_buffer_head_shared(struct inode *version_i)
+{
+	struct address_space *mapping = version_i->i_mapping;
+	struct buffer_head *head, *bh;
+	struct pagevec pvec;
+	pgoff_t index, end, done_index;
+	int done = 0, nr_pages;
+
+	pagevec_init(&pvec, 0);
+
+	index = 0;
+	end = version_i->i_size >> PAGE_CACHE_SHIFT;
+	done_index = index;
+
+	while (!done && (index <= end)) {
+		int i;
+
+		nr_pages = pagevec_lookup(&pvec, mapping, index,
+						min(end - index, (pgoff_t)PAGEVEC_SIZE-1) + 1);
+
+		if (nr_pages == 0)
+			break;
+
+		for (i = 0; i < nr_pages; i++) {
+			struct page *page = pvec.pages[i];
+			/*
+       * At this point, the page may be truncated or
+		 	 * invalidated (changing page->mapping to NULL), or
+		   * even swizzled back from swapper_space to tmpfs file
+		   * mapping. However, page->index will not change
+		   * because we have a reference on the page.
+		  */
+			if (page->index > end) {
+				done = 1;
+				break;
+			}
+
+			done_index = page->index + 1;
+			lock_page(page);
+
+			if (unlikely(page->mapping != mapping)) {
+				unlock_page(page);
+				continue;
+			}
+
+			head = page_buffers(page);
+			bh = head;
+
+			do {
+				set_buffer_shared(bh);
+				bh = bh->b_this_page;
+			} while (bh != head);
+
+			unlock_page(page);
+		}
+		index += nr_pages;
+	}
+
+	return 0;
 }
 
 int yuiha_create_snapshot(struct file *filp)
@@ -1873,6 +1949,8 @@ int yuiha_create_snapshot(struct file *filp)
 
 		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
 		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
+		yuiha_buffer_head_shared(new_version_target_i);
+		yuiha_clear_producer_flg(new_version_target_i);
 
 		ext3_mark_inode_dirty(handle, new_version_target_i);
 		ext3_mark_inode_dirty(handle, new_version_i);
