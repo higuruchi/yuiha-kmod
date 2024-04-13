@@ -474,7 +474,6 @@ static struct inode *ext3_alloc_inode(struct super_block *sb)
 		ei = kmem_cache_alloc(ext3_inode_cachep, GFP_NOFS);
 		if (!ei)
 			return NULL;
-
 	}
 	ei->i_block_alloc_info = NULL;
 	ei->vfs_inode.i_version = 1;
