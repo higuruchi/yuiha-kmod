@@ -153,6 +153,7 @@ struct yuiha_inode_info {
 	__u32 i_parent_ino;
 	__u32 i_sibling_ino;
 	__u32 i_child_ino;
+	struct inode *parent_inode;
 };
 
 #endif	/* _LINUX_EXT3_FS_I */

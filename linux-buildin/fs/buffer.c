@@ -1156,6 +1156,9 @@ __getblk_slow(struct block_device *bdev, sector_t block, int size)
  */
 void mark_buffer_dirty(struct buffer_head *bh)
 {
+	struct address_space *m = bh->b_page->mapping;
+	printk("mark_buffer_dirty %d %p %p %d\n",
+					bh->b_blocknr, bh->b_data, bh, m->host->i_ino);
 	WARN_ON_ONCE(!buffer_uptodate(bh));
 
 	/*

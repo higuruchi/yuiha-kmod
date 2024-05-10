@@ -2248,7 +2248,9 @@ again:
 		pos += copied;
 		written += copied;
 
+		printk("generic_perform_write2251\n");
 		balance_dirty_pages_ratelimited(mapping);
+		printk("generic_perform_write 2253\n");
 
 	} while (iov_iter_count(i));
 
@@ -2398,6 +2400,7 @@ ssize_t __generic_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	} else {
 		written = generic_file_buffered_write(iocb, iov, nr_segs,
 				pos, ppos, count, written);
+		printk("__generic_file_aio_write %d\n", 2403);
 	}
 out:
 	current->backing_dev_info = NULL;

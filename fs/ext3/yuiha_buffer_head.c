@@ -21,16 +21,23 @@
 #include <linux/bitops.h>
 #include <linux/mpage.h>
 #include <linux/bit_spinlock.h>
+#include <linux/ext3_jbd.h>
 #include "yuiha_buffer_head.h"
 
-static int __yuiha_block_prepare_write(struct inode *inode, struct page *page,
+#include <linux/journal-head.h>
+static int __yuiha_block_prepare_write(
+		struct inode *inode, struct page *page, struct page *parent_page, 
 		unsigned from, unsigned to, get_block_t *get_block)
 {
 	unsigned block_start, block_end;
 	sector_t block;
 	int err = 0;
 	unsigned blocksize, bbits;
-	struct buffer_head *bh, *head, *wait[2], **wait_bh=wait;
+	struct buffer_head *bh, *parent_bh, *head, *parent_head,
+										 *wait[2], **wait_bh=wait;
+	struct yuiha_inode_info *yi = YUIHA_I(inode);
+	struct inode *parent_inode = yi->parent_inode;
+	handle_t *handle = NULL;
 
 	BUG_ON(!PageLocked(page));
 	BUG_ON(from > PAGE_CACHE_SIZE);
@@ -45,6 +52,66 @@ static int __yuiha_block_prepare_write(struct inode *inode, struct page *page,
 	bbits = inode->i_blkbits;
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 
+	// copy buffer_head structure to parent_inode cache.
+	if (PageDirty(page) && PageShared(page)) {
+		printk("__yuiha_block_prepare_write 52\n");
+
+		if (!page_has_buffers(parent_page))
+			create_empty_buffers(parent_page, blocksize, 0);
+		
+		printk("__yuiha_block_prepare_write 62 %d\n", parent_inode->i_ino);
+		parent_head = page_buffers(parent_page);
+		for (bh = head, parent_bh = parent_head, block_start = 0;
+					bh != head || parent_bh != parent_head || !block_start;
+					block++, block_start=block_end, bh = bh->b_this_page,
+					parent_bh = parent_bh->b_this_page) {
+		// for (bh = head, block_start = 0;
+		// 			bh != head || !block_start;
+		// 			block++, block_start=block_end, bh = bh->b_this_page) {
+
+			block_end = block_start + blocksize;
+			if (buffer_shared(bh)) {
+
+				parent_bh->b_state = bh->b_state;
+				parent_bh->b_blocknr = bh->b_blocknr;
+				printk("__yuiha_block_prepare_write 72 %d\n", parent_bh->b_blocknr);
+				printk("__yuiha_block_prepare_write 81 %d\n", buffer_dirty(parent_bh));
+				parent_bh->b_bdev = bh->b_bdev;
+				//parent_bh->b_end_io = bh->b_end_io;
+				//parent_bh->b_private = bh->b_private;
+				parent_bh->b_size = bh->b_size;
+				memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
+
+				//mark_buffer_dirty(parent_bh);
+				ll_rw_block(WRITE, 1, &bh);
+				printk("__yuiha_block_prepare_write 84 %d %d %d %d %s %p\n", 
+								buffer_dirty(bh),
+								buffer_uptodate(bh),
+								buffer_mapped(bh),
+								bh->b_size,
+								bh->b_data,
+								bh->b_data);
+				printk("__yuiha_block_prepare_write 94 %d %p\n",
+								buffer_jbd(bh),
+								bh->b_data);
+				printk("__yuiha_block_prepare_write 97 %d %d %d %d %s\n", 
+								buffer_dirty(parent_bh),
+								buffer_uptodate(parent_bh),
+								buffer_mapped(parent_bh),
+								parent_bh->b_size,
+								parent_bh->b_data);
+				printk("__yuiha_block_prepare_write 103 %d %p\n",
+								buffer_jbd(bh),
+								parent_bh->b_data);
+
+				clear_buffer_shared(parent_bh);
+			}
+		}
+		flush_dcache_page(parent_page);
+		mark_page_accessed(parent_page);
+	}
+
+	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 	for(bh = head, block_start = 0; bh != head || !block_start;
 	    block++, block_start=block_end, bh = bh->b_this_page) {
 		block_end = block_start + blocksize;
@@ -58,10 +125,26 @@ static int __yuiha_block_prepare_write(struct inode *inode, struct page *page,
 		if (buffer_new(bh))
 			clear_buffer_new(bh);
 		if (!buffer_mapped(bh) || buffer_shared(bh)) {
+			printk("__yuiha_block_prepare_write 133\n");
 			WARN_ON(bh->b_size != blocksize);
+			// if data block is unmapped, data block is read.
+			// after that, cow is conducted.
+			if (!buffer_mapped(bh)) {
+				err = get_block(inode, block, bh, 0);
+				if (buffer_shared(bh)) {
+					printk("__yuiha_block_prepare_write 140\n");
+					submit_bh(READ, bh);
+				}
+			}
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				break;
+
+			if (buffer_shared(bh)) {
+				set_buffer_uptodate(bh);
+				clear_buffer_shared(bh);
+			}
+
 			if (buffer_new(bh)) {
 				unmap_underlying_metadata(bh->b_bdev,
 							bh->b_blocknr);
@@ -77,9 +160,6 @@ static int __yuiha_block_prepare_write(struct inode *inode, struct page *page,
 						block_start, from);
 				continue;
 			}
-
-			if (buffer_shared(bh))
-				clear_buffer_shared(bh);
 		}
 		if (PageUptodate(page)) {
 			if (!buffer_uptodate(bh))
@@ -124,7 +204,11 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 	struct page *page;
 	pgoff_t index;
 	unsigned start, end;
-	int ownpage = 0;
+	int ownpage = 0, parent_ownpage = 0;
+	struct yuiha_inode_info *yi = YUIHA_I(inode);
+	struct inode *parent_inode = yi->parent_inode;
+	struct address_space *parent_mapping = NULL;
+	struct page *parent_page = NULL;
 
 	index = pos >> PAGE_CACHE_SHIFT;
 	start = pos & (PAGE_CACHE_SIZE - 1);
@@ -142,9 +226,33 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 	} else
 		BUG_ON(!PageLocked(page));
 
-	status = __yuiha_block_prepare_write(inode, page, start, end, get_block);
+
+	// if page shared
+	// 	get parent inode
+	// 	allocate page cache
+	// 	insert page cache 
+	// 	copy buffer_head->b_data
+	if (parent_inode) {
+		printk("yuiha_block_write_begin196 \n");
+		parent_ownpage = 1;
+		parent_mapping = parent_inode->i_mapping;
+		parent_page = grab_cache_page_write_begin(parent_mapping, index, flags);
+		if (!parent_page) {
+			status = -ENOMEM;
+			goto out;
+		} else
+			BUG_ON(!PageLocked(page));
+	}
+	printk("yuiha_block_write_begin 205\n");
+	status = __yuiha_block_prepare_write(inode, page, parent_page, 
+					start, end, get_block);
+	printk("yuiha_block_write_begin 207\n");
+
 	if (unlikely(status)) {
+		printk("yuiha_block_write_begin 248\n");
 		ClearPageUptodate(page);
+		if (parent_page)
+			ClearPageUptodate(parent_page);
 
 		if (ownpage) {
 			unlock_page(page);
@@ -158,6 +266,11 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 			 */
 			if (pos + len > inode->i_size)
 				vmtruncate(inode, inode->i_size);
+		}
+
+		if (parent_ownpage && parent_page) {
+			unlock_page(parent_page);
+			page_cache_release(parent_page);
 		}
 	}
 

@@ -1770,7 +1770,9 @@ static int yuiha_copy_inode_info(
 												 *src_ext3_ei = &src_yuiha_ei->i_ext3;
 	struct inode *dst_inode = &dst_ext3_ei->vfs_inode,
 							 *src_inode = &src_ext3_ei->vfs_inode;
-	
+	struct address_space *const dst_mapping = &dst_inode->i_data,
+											 *const src_mapping = &src_inode->i_data;
+
 	memcpy(dst_ext3_ei->i_data,
 					src_ext3_ei->i_data,
 					sizeof(dst_ext3_ei->i_data));
@@ -1779,32 +1781,41 @@ static int yuiha_copy_inode_info(
 	dst_ext3_ei->i_dir_acl = src_ext3_ei->i_dir_acl;
 	dst_ext3_ei->i_dtime = src_ext3_ei->i_dtime;
 	dst_ext3_ei->i_block_group = src_ext3_ei->i_block_group;
-	// dst_ext3_ei->i_state = src_ext3_ei->i_state;
+	dst_ext3_ei->i_state = EXT3_STATE_NEW;
 	dst_ext3_ei->i_block_alloc_info = src_ext3_ei->i_block_alloc_info;
 	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
 	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
 
 	dst_inode->i_mode = src_inode->i_mode;
-	dst_inode->i_nlink = 1;
+	dst_inode->i_nlink--;
 	dst_inode->i_uid = src_inode->i_uid;
 	dst_inode->i_gid = src_inode->i_gid;
 	dst_inode->i_rdev = src_inode->i_rdev;
-	dst_inode->i_size = 0;
+	dst_inode->i_size = src_inode->i_size;
 	dst_inode->i_atime = src_inode->i_atime;
 	dst_inode->i_mtime = src_inode->i_mtime;
 	dst_inode->i_ctime = src_inode->i_ctime;
 	dst_inode->i_blkbits = src_inode->i_blkbits;
 	dst_inode->i_version = src_inode->i_version;
-	dst_inode->i_blocks = 0;
-  dst_inode->i_bytes = 0;
+	dst_inode->i_blocks = src_inode->i_blocks;
+  dst_inode->i_bytes = src_inode->i_bytes;
 	dst_inode->i_op = &ext3_file_operations;
 	dst_inode->i_fop = &yuiha_file_operations;
 	dst_inode->i_sb = src_inode->i_sb;
 	dst_inode->i_bdev = src_inode->i_bdev;
 	dst_inode->i_generation = src_inode->i_generation;
-	// dst_inode->i_state = src_inode->i_state;
+	dst_inode->i_mapping = &dst_inode->i_data;
 	dst_inode->i_flags = src_inode->i_flags;
-	// ext3_set_aops(dst_inode);
+	inc_nlink(dst_inode);
+	inc_nlink(src_inode);
+
+	dst_mapping->host = dst_inode;
+	dst_mapping->flags = src_mapping->flags;
+	//dst_mapping->backing_dev_info = src_mapping->backing_dev_info;
+	dst_mapping->writeback_index = 0;
+	dst_mapping->assoc_mapping = NULL;
+	ext3_set_aops(dst_inode);
+
 	return 0;
 }
 
@@ -1834,6 +1845,8 @@ yuiha_add_version_to_tree(
 	new_version_yi->i_parent_ino = 0;
 	new_version_yi->i_sibling_ino = 0;
 	new_version_yi->i_child_ino = 0;
+
+	target_version_yi->parent_inode = new_version_inode;
 
 	if (!target_version_yi->i_child_ino) {
 		// There is no child version
@@ -1915,6 +1928,8 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 				bh = bh->b_this_page;
 			} while (bh != head);
 
+			SetPageShared(page);
+
 			unlock_page(page);
 		}
 		index += nr_pages;
@@ -1956,6 +1971,7 @@ int yuiha_create_snapshot(struct file *filp)
 		ext3_mark_inode_dirty(handle, new_version_i);
 	}
 
+	printk("yuiha_create_snapshot %d\n", new_version_i->i_ino);
 	ext3_journal_stop(handle);
 	return 0;
 }
