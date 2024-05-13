@@ -482,6 +482,23 @@ static struct inode *ext3_alloc_inode(struct super_block *sb)
 	return &ei->vfs_inode;
 }
 
+void yuiha_drop_inode(struct inode *inode)
+{
+	struct inode *parent_inode = YUIHA_I(inode)->parent_inode;
+	struct super_block *sb = inode->i_sb;
+	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
+	struct file_system_type *fs_type = sb->s_type;
+	int is_not_journal_file = es->s_journal_inum != inode->i_ino,
+			is_yuiha = ext3_judge_yuiha(fs_type);
+
+	generic_drop_inode(inode);
+	if (parent_inode && is_yuiha && S_ISREG(inode->i_mode)
+					&& is_not_journal_file) {
+		iput(parent_inode);
+	}
+}
+
+
 static void ext3_destroy_inode(struct inode *inode)
 {
 	struct file_system_type *fs_type = inode->i_sb->s_type;
@@ -775,6 +792,7 @@ static const struct quotactl_ops ext3_qctl_operations = {
 
 static const struct super_operations ext3_sops = {
 	.alloc_inode	= ext3_alloc_inode,
+	.drop_inode = yuiha_drop_inode,
 	.destroy_inode	= ext3_destroy_inode,
 	.write_inode	= ext3_write_inode,
 	.dirty_inode	= ext3_dirty_inode,

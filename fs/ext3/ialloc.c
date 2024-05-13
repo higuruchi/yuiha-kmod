@@ -448,6 +448,7 @@ struct inode *ext3_new_inode(handle_t *handle, struct inode * dir, int mode)
 		yi->i_parent_ino = 0;
 		yi->i_sibling_ino = 0;
 		yi->i_child_ino = 0;
+		yi->parent_inode = NULL;
 		ei = &yi->i_ext3;
 	} else {
 		ei = EXT3_I(inode);
