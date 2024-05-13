@@ -861,83 +861,73 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 				sector_t iblock, unsigned long maxblocks, int blocks_to_boundary,
 				int depth, int offsets[4], Indirect chain[4])
 {
-	int cow_block_pointer_offset, cow_datablock_count, i, j,
-			indirect_blks, err = -EIO, cow_depth = depth;
+	int cow_ind_offset, ncow, i, j,
+		indirect_blks, err = -EIO, cow_depth = depth;
 	Indirect cow_chain[4] = {0};
 	Indirect *partial, *cow_partial;
 	ext3_fsblk_t goal;
 	struct super_block *sb = inode->i_sb;
 
 
-	//while (--cow_depth)
+	while (cow_depth) {
+		cow_ind_offset = depth - cow_depth;
+		cow_chain[cow_ind_offset].p = chain[cow_ind_offset].p;
+		cow_chain[cow_ind_offset].key = chain[cow_ind_offset].key;
 
-	for (cow_block_pointer_offset = 0; cow_block_pointer_offset < depth;
-					cow_block_pointer_offset++) {
-		cow_chain[cow_block_pointer_offset].p =
-				chain[cow_block_pointer_offset].p;
-		cow_chain[cow_block_pointer_offset].key =
-				chain[cow_block_pointer_offset].key;
-
-		if (chain[cow_block_pointer_offset].bh)
-			cow_chain[cow_block_pointer_offset].bh =
-					sb_getblk(inode->i_sb, chain[cow_block_pointer_offset].key);
-		if (!test_producer_flg(le32_to_cpu(*chain[cow_block_pointer_offset].p)))
+		if (!test_producer_flg(le32_to_cpu(*chain[cow_ind_offset].p)))
 			break;
+
+		cow_depth--;
 	}
 
 	// All data block producer flag is allocated
 	// including indirect block.
-	if (cow_block_pointer_offset == depth) {
-		for (i = 1; i < depth; i++) {
-			if (cow_chain[i].bh)
-				brelse(cow_chain[i].bh);
-		}
+	if (!cow_depth)
 		return 0;
-	}
 
-	partial = &chain[cow_block_pointer_offset];
-	cow_partial = &cow_chain[cow_block_pointer_offset];
+	partial = &chain[cow_ind_offset];
+	cow_partial = &cow_chain[cow_ind_offset];
 	indirect_blks = (chain + depth) - partial - 1;
-	cow_datablock_count = ext3_blks_to_allocate(cow_partial, indirect_blks,
+	ncow = ext3_blks_to_allocate(cow_partial, indirect_blks,
 					maxblocks, blocks_to_boundary);
 
 	goal = ext3_find_goal(inode, iblock, cow_partial);
 	err = ext3_alloc_branch(handle, inode, indirect_blks,
-					&cow_datablock_count, goal,
-					offsets + cow_block_pointer_offset, cow_partial);
+					&ncow, goal,
+					offsets + cow_ind_offset, cow_partial);
 	if (err)
 		return err;
 
 	ext3_splice_branch(handle, inode, iblock, cow_partial,
-					indirect_blks, cow_datablock_count);
+					indirect_blks, ncow);
 
 	// copy indirect
-	for (i = 1;
-			i < cow_datablock_count + indirect_blks - cow_block_pointer_offset;
-			i++) {
+	for (i = cow_ind_offset; i < depth; i++) {
+		if (!i)
+			continue;
 
-		__le32 bn = *cow_partial[i].p;
-		memcpy(cow_partial[i].bh->b_data, partial[i].bh->b_data,
-						cow_partial[i].bh->b_size);
+		__le32 bn = *cow_chain[i].p;
+		memcpy(cow_chain[i].bh->b_data, chain[i].bh->b_data,
+						cow_chain[i].bh->b_size);
 
-		__le32 *key_p = cow_partial[i].bh->b_data;
+		__le32 *key_p = cow_chain[i].bh->b_data;
 		for(j = 0; j < EXT3_ADDR_PER_BLOCK(sb); j += 1) {
 			*key_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*key_p)));
 			key_p++;
 		}
 
-		*cow_partial[i].p = bn;
-		ext3_journal_dirty_metadata(handle, cow_partial[i].bh);
+		*cow_chain[i].p = bn;
+		ext3_journal_dirty_metadata(handle, cow_chain[i].bh);
 	}
 
-
-	partial[0] = cow_partial[0];
-	for (i = 1;
-			i < cow_datablock_count + indirect_blks - cow_block_pointer_offset;
-			i++) {
-		ext3_journal_dirty_metadata(handle, partial[i].bh);
-		brelse(partial[i].bh);
-		partial[i] = cow_partial[i];
+	for (i = cow_ind_offset; i < depth; i++) {
+		if (!i) {
+			chain[i] = cow_chain[i];
+			continue;
+		}
+		ext3_journal_dirty_metadata(handle, chain[i].bh);
+		brelse(chain[i].bh);
+		chain[i] = cow_chain[i];
 	}
 
 	return err;

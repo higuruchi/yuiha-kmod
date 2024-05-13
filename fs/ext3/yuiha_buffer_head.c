@@ -22,9 +22,9 @@
 #include <linux/mpage.h>
 #include <linux/bit_spinlock.h>
 #include <linux/ext3_jbd.h>
+#include <linux/journal-head.h>
 #include "yuiha_buffer_head.h"
 
-#include <linux/journal-head.h>
 static int __yuiha_block_prepare_write(
 		struct inode *inode, struct page *page, struct page *parent_page, 
 		unsigned from, unsigned to, get_block_t *get_block)
@@ -65,9 +65,6 @@ static int __yuiha_block_prepare_write(
 					bh != head || parent_bh != parent_head || !block_start;
 					block++, block_start=block_end, bh = bh->b_this_page,
 					parent_bh = parent_bh->b_this_page) {
-		// for (bh = head, block_start = 0;
-		// 			bh != head || !block_start;
-		// 			block++, block_start=block_end, bh = bh->b_this_page) {
 
 			block_end = block_start + blocksize;
 			if (buffer_shared(bh)) {
