@@ -855,7 +855,8 @@ err_out:
 
 static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 				sector_t iblock, unsigned long maxblocks, int blocks_to_boundary,
-				int depth, int offsets[4], Indirect chain[4])
+				int depth, int offsets[4], Indirect chain[4],
+				struct buffer_head *bh_result)
 {
 	int cow_ind_offset, ncow, i, j,
 		indirect_blks, err = -EIO, cow_depth = depth;
@@ -863,7 +864,6 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 	Indirect *partial, *cow_partial;
 	ext3_fsblk_t goal;
 	struct super_block *sb = inode->i_sb;
-
 
 	while (cow_depth) {
 		cow_ind_offset = depth - cow_depth;
@@ -896,6 +896,14 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 
 	ext3_splice_branch(handle, inode, iblock, cow_partial,
 					indirect_blks, ncow);
+
+	if (!buffer_uptodate(bh_result)) {
+		map_bh(bh_result, sb, le32_to_cpu(chain[depth-1].key));
+		ll_rw_block(READ, 1, &bh_result);
+		wait_on_buffer(bh_result);
+		clear_buffer_mapped(bh_result);
+		set_buffer_shared(bh_result);
+	}
 
 	// copy indirect
 	for (i = cow_ind_offset; i < depth; i++) {
@@ -969,7 +977,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_yuiha = ext3_judge_yuiha(fs_type),
 			is_not_journal_file = es->s_journal_inum != inode->i_ino;
-
+	sector_t cow_block_no;
 
 	J_ASSERT(handle != NULL || create == 0);
 	depth = ext3_block_to_path(inode,iblock,offsets,&blocks_to_boundary);
@@ -985,12 +993,14 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 
 	/* Simplest case - block found, no allocation needed */
 	if (!partial) {
+		// if (chain[depth-1].bh is shared)
 		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			mutex_lock(&ei->truncate_mutex);
 			printk("ext3_get_blocks_handle 979 \n");
 			// if unmapped; then read block
+			cow_block_no = le32_to_cpu(chain[depth-1].key);
 			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
-							blocks_to_boundary, depth, offsets, chain); 
+							blocks_to_boundary, depth, offsets, chain, bh_result); 
 			mutex_unlock(&ei->truncate_mutex);
 		}
 
@@ -1479,13 +1489,14 @@ static int ext3_ordered_write_end(struct file *file,
 		from, to, NULL, journal_dirty_data_fn);
 
 	if (parent_inode) {
-
+		printk("ext3_ordered_write_end 1485\n");
 		parent_mapping = parent_inode->i_mapping;
 		parent_page = find_get_page(parent_mapping, index);
 
-		block_write_end(NULL, parent_mapping, pos, len, copied, parent_page, fsdata);
-
-		if (PageShared(page)) {
+		printk("ext3_ordered_write_end 1492\n");
+		if (parent_page && PageShared(page)) {
+			block_write_end(NULL, parent_mapping, pos, len, copied,
+							parent_page, fsdata);
 			printk("ext3_ordered_write_end 1502\n");
 			ret = walk_page_buffers(handle, page_buffers(parent_page), 
 							from, to, NULL, journal_dirty_data_fn);

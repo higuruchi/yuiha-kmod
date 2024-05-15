@@ -56,7 +56,7 @@ static int __yuiha_block_prepare_write(
 	if (PageDirty(page) && PageShared(page)) {
 		printk("__yuiha_block_prepare_write 52\n");
 
-		if (!page_has_buffers(parent_page))
+		if (parent_page && !page_has_buffers(parent_page))
 			create_empty_buffers(parent_page, blocksize, 0);
 		
 		printk("__yuiha_block_prepare_write 62 %d\n", parent_inode->i_ino);
@@ -74,13 +74,9 @@ static int __yuiha_block_prepare_write(
 				printk("__yuiha_block_prepare_write 72 %d\n", parent_bh->b_blocknr);
 				printk("__yuiha_block_prepare_write 81 %d\n", buffer_dirty(parent_bh));
 				parent_bh->b_bdev = bh->b_bdev;
-				//parent_bh->b_end_io = bh->b_end_io;
-				//parent_bh->b_private = bh->b_private;
 				parent_bh->b_size = bh->b_size;
 				memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
 
-				//mark_buffer_dirty(parent_bh);
-				ll_rw_block(WRITE, 1, &bh);
 				printk("__yuiha_block_prepare_write 84 %d %d %d %d %s %p\n", 
 								buffer_dirty(bh),
 								buffer_uptodate(bh),
@@ -121,18 +117,12 @@ static int __yuiha_block_prepare_write(
 		}
 		if (buffer_new(bh))
 			clear_buffer_new(bh);
+
 		if (!buffer_mapped(bh) || buffer_shared(bh)) {
-			printk("__yuiha_block_prepare_write 133\n");
+			printk("__yuiha_block_prepare_write 133 %d %d\n",
+							!buffer_mapped(bh), buffer_shared(bh));
+
 			WARN_ON(bh->b_size != blocksize);
-			// if data block is unmapped, data block is read.
-			// after that, cow is conducted.
-			if (!buffer_mapped(bh)) {
-				err = get_block(inode, block, bh, 0);
-				if (buffer_shared(bh)) {
-					printk("__yuiha_block_prepare_write 140\n");
-					submit_bh(READ, bh);
-				}
-			}
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				break;
@@ -166,6 +156,7 @@ static int __yuiha_block_prepare_write(
 		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
 		    !buffer_unwritten(bh) &&
 		     (block_start < from || block_end > to)) {
+			printk("__yuiha_block_prepare_write 170\n");
 			ll_rw_block(READ, 1, &bh);
 			*wait_bh++=bh;
 		}
@@ -224,12 +215,7 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 		BUG_ON(!PageLocked(page));
 
 
-	// if page shared
-	// 	get parent inode
-	// 	allocate page cache
-	// 	insert page cache 
-	// 	copy buffer_head->b_data
-	if (parent_inode) {
+	if (parent_inode && PageDirty(page) && PageShared(page)) {
 		printk("yuiha_block_write_begin196 \n");
 		parent_ownpage = 1;
 		parent_mapping = parent_inode->i_mapping;
