@@ -1846,22 +1846,22 @@ yuiha_add_version_to_tree(
 	new_version_yi->i_sibling_ino = 0;
 	new_version_yi->i_child_ino = 0;
 
-	target_version_yi->parent_inode = new_version_inode;
-
 	if (!target_version_yi->i_child_ino) {
 		// There is no child version
-	  if (target_version_yi->i_parent_ino) {
+		if (target_version_yi->parent_inode) {
+			parent_inode = target_version_yi->parent_inode;
+			parent_yi = YUIHA_I(parent_inode);
+		} else if (target_version_yi->i_parent_ino) {
 	  	parent_inode = ext3_iget(sb, target_version_yi->i_parent_ino);
 	  	parent_yi = YUIHA_I(parent_inode);
 	  }
 
 	  new_version_yi->i_child_ino = target_version_inode->i_ino;
-	  if (parent_inode)
-	    new_version_yi->i_parent_ino = parent_inode->i_ino;
+	  new_version_yi->i_parent_ino = target_version_yi->i_parent_ino;
 
 	  target_version_yi->i_parent_ino = new_version_inode->i_ino;
 	  if (parent_inode)
-	  	parent_yi->i_child_ino = target_version_inode->i_ino;
+	  	parent_yi->i_child_ino = new_version_inode->i_ino;
 
 	  if (parent_inode) {
 	  	ext3_mark_inode_dirty(handle, parent_inode);
@@ -1871,6 +1871,8 @@ yuiha_add_version_to_tree(
 		// There are children version
 		printk("branch versioning\n");
 	}
+
+	target_version_yi->parent_inode = new_version_inode;
 
 	return 0;
 }
@@ -1973,6 +1975,8 @@ int yuiha_create_snapshot(struct file *filp)
 
 	printk("yuiha_create_snapshot %d\n", new_version_i->i_ino);
 	ext3_journal_stop(handle);
+	unlock_new_inode(new_version_i);
+
 	return 0;
 }
 

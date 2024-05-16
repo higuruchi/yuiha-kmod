@@ -2993,20 +2993,25 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_not_journal_file;
 
+	printk("ext3_iget 2996\n");
 	inode = iget_locked(sb, ino);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 	if (!(inode->i_state & I_NEW))
 		return inode;
 
+	printk("ext3_iget 3002\n");
 	is_not_journal_file = es->s_journal_inum != inode->i_ino;
 	if (ext3_judge_yuiha(fs_type)) {
 		yi = YUIHA_I(inode);
 		ei = &yi->i_ext3;
 
 		yi->parent_inode = NULL;
-		if (yi->i_parent_ino && S_ISREG(inode->i_mode) && is_not_journal_file)
+		printk("ext3_iget 3008\n");
+		if (yi->i_parent_ino && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			yi->parent_inode = ext3_iget(sb, yi->i_parent_ino);
+		}
+		printk("ext3_iget 3011\n");
 	} else {
 		ei = EXT3_I(inode);
 	}
