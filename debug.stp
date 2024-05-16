@@ -1,0 +1,5 @@
+#!/usr/bin/stap
+
+probe kernel.function("do_sync_write") {
+	printf("open!(%d)\n", pid())
+}
