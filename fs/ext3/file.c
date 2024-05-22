@@ -26,8 +26,7 @@
 #include "xattr.h"
 #include "acl.h"
 #include "namei.h"
-
-#define O_VERSION 04000000
+#include "yuiha_flags.h"
 
 /*
  * Called when an inode is released. Note that this is different
@@ -54,6 +53,26 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 	return 0;
 }
 
+static int yuiha_parent_file_open(struct file *filp)
+{
+	struct inode *opened_inode = filp->f_dentry,
+							 *parent_inode = NULL;
+	struct yuiha_inode_info *opened_yi = YUIHA_I(opened_inode),
+													*parent_yi = NULL;
+	struct super_block *sb = opened_inode->i_sb;
+
+	// Parent version not found
+	if (!opened_yi->i_parent_ino)
+		return 0;
+
+	if (!opened_yi->parent_inode) {
+		parent_inode = ext3_iget(sb, opened_yi->i_parent_ino);
+		opened_yi->parent_inode = parent_inode;
+	}
+
+	return 0;
+}
+
 static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
 	printk("yuiha_file_open ino=%lu\n", inode->i_ino);
@@ -61,7 +80,10 @@ static int yuiha_file_open(struct inode * inode, struct file *filp)
 	if (ret)
 		return ret;
 
-	if (filp->f_flags & O_VERSION) {
+	if (filp->f_flags & (O_PARENT | O_RDONLY)) {
+		printk("parent version open!!\n");
+		yuiha_parent_file_open(filp);
+	} else if (filp->f_flags & O_VERSION) {
 		printk("versioned!!\n");
 		yuiha_create_snapshot(filp);
 	}
