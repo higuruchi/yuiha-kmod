@@ -1923,7 +1923,15 @@ ext3_readpages(struct file *file, struct address_space *mapping,
 
 static void ext3_invalidatepage(struct page *page, unsigned long offset)
 {
+	struct inode *inode = page->mapping->host;
+	printk("ext3_invalidatepage 1926 %p\n", page);
+	printk("ext3_invalidatepage 1926 %p\n", page->mapping);
+	printk("ext3_invalidatepage 1926 %p %d\n", page->mapping->host, inode->i_ino);
+	printk("ext3_invalidatepage 1926 %p\n", inode->i_sb);
+	printk("ext3_invalidatepage 1926 %p\n", EXT3_SB(inode->i_sb));
+	printk("ext3_invalidatepage 1926 %p\n", EXT3_SB(inode->i_sb)->s_journal);
 	journal_t *journal = EXT3_JOURNAL(page->mapping->host);
+	printk("ext3_invalidatepage 1928 %d\n", page->mapping->host->i_ino);
 
 	/*
 	 * If it's a full truncate we just forget about the pending dirtying
@@ -1931,6 +1939,7 @@ static void ext3_invalidatepage(struct page *page, unsigned long offset)
 	if (offset == 0)
 		ClearPageChecked(page);
 
+	printk("ext3_invalidatepage 1936 \n");
 	journal_invalidatepage(journal, page, offset);
 }
 
@@ -3008,9 +3017,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 
 		yi->parent_inode = NULL;
 		printk("ext3_iget 3008\n");
-		if (yi->i_parent_ino && S_ISREG(inode->i_mode) && is_not_journal_file) {
-			yi->parent_inode = ext3_iget(sb, yi->i_parent_ino);
-		}
+		yi->parent_inode = NULL;
 		printk("ext3_iget 3011\n");
 	} else {
 		ei = EXT3_I(inode);
@@ -3025,7 +3032,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 
 	raw_inode = ext3_raw_inode(&iloc);
 	if (yi) {
-		yuiha_raw_inode = raw_inode;
+		yuiha_raw_inode = (struct yuiha_inode *)raw_inode;
 	}
 	inode->i_mode = le16_to_cpu(raw_inode->i_mode);
 	inode->i_uid = (uid_t)le16_to_cpu(raw_inode->i_uid_low);
@@ -3142,9 +3149,18 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	if (S_ISREG(inode->i_mode)) {
 		if (ext3_judge_yuiha(fs_type)) {
 			inode->i_fop = &yuiha_file_operations;
+
 			yi->i_parent_ino = le32_to_cpu(yuiha_raw_inode->i_parent_ino);
+			yi->i_parent_generation =
+					le32_to_cpu(yuiha_raw_inode->i_parent_generation);
+
 			yi->i_sibling_ino = le32_to_cpu(yuiha_raw_inode->i_sibling_ino);
+			yi->i_sibling_generation =
+					le32_to_cpu(yuiha_raw_inode->i_sibling_generation);
+
 			yi->i_child_ino = le32_to_cpu(yuiha_raw_inode->i_child_ino);
+			yi->i_child_generation =
+					le32_to_cpu(yuiha_raw_inode->i_child_generation);
 		} else {
 			inode->i_fop = &ext3_file_operations;
 		}
@@ -3307,8 +3323,13 @@ again:
 
 	if (yi) {
 		yuiha_raw_inode->i_parent_ino = cpu_to_le32(yi->i_parent_ino);
+		yuiha_raw_inode->i_parent_generation = cpu_to_le32(yi->i_parent_generation);
+
 		yuiha_raw_inode->i_sibling_ino = cpu_to_le32(yi->i_sibling_ino);
+		yuiha_raw_inode->i_sibling_generation = cpu_to_le32(yi->i_sibling_generation);
+
 		yuiha_raw_inode->i_child_ino = cpu_to_le32(yi->i_child_ino);
+		yuiha_raw_inode->i_child_generation = cpu_to_le32(yi->i_child_generation);
 	}
 
 	BUFFER_TRACE(bh, "call ext3_journal_dirty_metadata");

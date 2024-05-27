@@ -150,9 +150,16 @@ struct ext3_inode_info {
 
 struct yuiha_inode_info {
 	struct ext3_inode_info i_ext3;
+
 	__u32 i_parent_ino;
+	__u32 i_parent_generation;
+
 	__u32 i_sibling_ino;
+	__u32 i_sibling_generation;
+
 	__u32 i_child_ino;
+	__u32 i_child_generation;
+
 	struct inode *parent_inode;
 };
 

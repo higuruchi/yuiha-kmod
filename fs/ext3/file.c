@@ -35,6 +35,13 @@
  */
 static int ext3_release_file (struct inode * inode, struct file * filp)
 {
+	struct yuiha_inode_info *yi;
+	struct dentry *dentry = filp->f_dentry,
+								//*parent_version = filp->f_dentry->d_fsdata,
+								*parent = filp->f_dentry->d_parent;
+	struct qstr dname;
+	unsigned long hash;
+
 	if (EXT3_I(inode)->i_state & EXT3_STATE_FLUSH_ON_CLOSE) {
 		filemap_flush(inode->i_mapping);
 		EXT3_I(inode)->i_state &= ~EXT3_STATE_FLUSH_ON_CLOSE;
@@ -49,6 +56,25 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 	}
 	if (is_dx(inode) && filp->private_data)
 		ext3_htree_free_dir_info(filp->private_data);
+
+	// only yuihafs
+	yi = YUIHA_I(inode);
+	if (yi->parent_inode) {
+		printk("ext3_release_file 63\n");
+		iput(yi->parent_inode);
+		// dname.name = dentry->d_name.name;
+		// dname.len = dentry->d_name.len;
+		// dname.hash = full_name_hash(dname.name, dname.len);
+		// dname.hash = partial_name_hash(dname.hash, yi->parent_inode->i_generation);
+		// dname.hash = partial_name_hash(dname.hash, yi->parent_inode->i_ino);
+		// dname.hash = end_name_hash(dname.hash);
+		// parent_version = d_lookup(parent, &dname);
+		printk("ext3_release_file 71 %lu\n", dname.hash);
+		// if (parent_version) {
+		// 	printk("ext3_release_file 72\n");
+		// 	dput(parent_version);
+		// }
+	}
 
 	return 0;
 }
@@ -75,17 +101,17 @@ static int yuiha_parent_file_open(struct file *filp)
 
 static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
-	printk("yuiha_file_open ino=%lu\n", inode->i_ino);
+	printk("yuiha_file_open ino=%lu %lu\n", inode->i_ino, inode->i_count);
 	int ret = generic_file_open(inode, filp);
 	if (ret)
 		return ret;
 
 	if (filp->f_flags & (O_PARENT | O_RDONLY)) {
 		printk("parent version open!!\n");
-		yuiha_parent_file_open(filp);
+		//yuiha_parent_file_open(filp);
 	} else if (filp->f_flags & O_VERSION) {
 		printk("versioned!!\n");
-		yuiha_create_snapshot(filp);
+		//yuiha_create_snapshot(filp);
 	}
 
 	return ret;

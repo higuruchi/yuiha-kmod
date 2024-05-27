@@ -491,10 +491,26 @@ void yuiha_drop_inode(struct inode *inode)
 	int is_not_journal_file = es->s_journal_inum != inode->i_ino,
 			is_yuiha = ext3_judge_yuiha(fs_type);
 
+	printk("yuiha_drop_inode 493 %d %d\n",
+						inode->i_ino, inode->i_count);
 	generic_drop_inode(inode);
+	printk("yuiha_drop_inode 497 %d %d\n",
+					inode->i_ino, inode->i_count);
 	if (parent_inode && is_yuiha && S_ISREG(inode->i_mode)
 					&& is_not_journal_file) {
-		iput(parent_inode);
+	
+		printk("yuiha_drop_inode 502 %d %d\n",
+						parent_inode->i_ino, parent_inode->i_count);
+		YUIHA_I(inode)->parent_inode = NULL;
+		//generic_drop_inode(parent_inode);
+
+		// cannot access inode_lock variable
+		//atomic_dec_and_lock(&parent_inode->i_count, &inode_lock);
+		
+		// this is generate kernel panic
+		// atomic_dec(&parent_inode->i_count); 
+		printk("yuiha_drop_inode 504 %d %d\n", parent_inode->i_ino,
+						parent_inode->i_count);
 	}
 }
 
@@ -792,7 +808,7 @@ static const struct quotactl_ops ext3_qctl_operations = {
 
 static const struct super_operations ext3_sops = {
 	.alloc_inode	= ext3_alloc_inode,
-	.drop_inode = yuiha_drop_inode,
+	.drop_inode = generic_drop_inode,
 	.destroy_inode	= ext3_destroy_inode,
 	.write_inode	= ext3_write_inode,
 	.dirty_inode	= ext3_dirty_inode,
