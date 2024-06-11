@@ -8,10 +8,12 @@
 ### How to create VM of Ubuntu10.04
 
 ```bash
-$ virt-install --name ubunt1004 \
+$ virt-install \
+--name yuiha-vm \
 --ram 4096 \
 --disk path=/var/lib/libvirt/images/ubuntu1004.img,size=20 \
---vcpus 2 --os-variant=ubuntu10.04 \
+--vcpus 2 \
+--os-variant=ubuntu10.04 \
 --network bridge=virbr0 \
 --graphics none \
 --console pty,target_type=serial \
@@ -37,6 +39,37 @@ $ sudo make modules_install && \
 $ sed -e "s/GRUB_DEFAULT=0/GRUB_DEFAULT=\"Ubuntu, with Linux 2.6.32\"/" /etc/default/grub | sudo tee /etc/default/grub
 $ sudo update-grub
 $ sudo reboot
+```
+
+### How to use kgdb
+
+**debuggee**
+```bash
+$ sed -e "s/GRUB_CMDLINE_LINUX_DEFAULT/GRUB_CMDLINE_LINUX_DEFAULT=\"console=ttyS0,115200 kgdboc=ttyS0,115200 nokaslr\"/" /etc/default/grub | sudo tee /etc/default/grub
+```
+
+**debugger**
+To modify the guest domain file, `virsh-edit` command is used.
+
+```bash
+$ virsh edit yuiha-vm
+```
+
+Find the `domain` directive and add the option `xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'`.
+
+```xml
+<domain type='kvm'
+        xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0' >
+```
+
+Add a new `qemu:commandline` tag inside domain which will allow us to pass a parameter to QEMU for this guest when starting.
+
+```xml
+<domain type='kvm'
+       xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0' >
+     <qemu:commandline>
+          <qemu:arg value='-s'/>
+     </qemu:commandline>
 ```
 
 ## How to build
