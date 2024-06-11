@@ -1099,26 +1099,27 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, str
 		printk("ext3_lookup 1073 %d %d\n", inode->i_ino, inode->i_count);
 
 		if (S_ISREG(inode->i_mode)) {
-			// if (nd->intent.open.flags & (O_PARENT | O_RDONLY)) {
-			// 	printk("ext3_lookup 1110 %d\n", inode->i_ino);
-			// 	yi = YUIHA_I(inode);
+			if (nd->intent.open.flags & (O_PARENT | O_RDONLY)) {
+				printk("ext3_lookup 1110 %d\n", inode->i_ino);
+				yi = YUIHA_I(inode);
 
-			// 	hash = partial_name_hash(hash, yi->i_parent_generation);
-			// 	hash = partial_name_hash(hash, yi->i_parent_ino);
-			// 	dentry->d_name.hash = end_name_hash(hash);
-			// 	dentry_found = d_lookup(parent, &dentry->d_name);
-			// 	if (dentry_found) {
-			// 		iput(inode);
-			// 		return dentry_found;
-			// 	}
+				hash = partial_name_hash(hash, yi->i_parent_generation);
+				hash = partial_name_hash(hash, yi->i_parent_ino);
+				dentry->d_name.hash = end_name_hash(hash);
+				dentry_found = d_lookup(parent, &dentry->d_name);
+				if (dentry_found) {
+					printk("ext3_lookup 1111 %d\n", dentry_found->d_inode->i_ino);
+					iput(inode);
+					return dentry_found;
+				}
 
-			// 	parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
-			// 	printk("ext3_lookup 1110 %p\n", parent_inode);
-			// 	if (parent_inode)
-			// 		parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
-			// 	iput(inode);
-			// 	inode = parent_inode;
-			// } else {
+				parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
+				if (parent_inode)
+					parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
+				printk("ext3_lookup 1118 %p\n", parent_inode);
+				iput(inode);
+				inode = parent_inode;
+			} else {
 				printk("ext3_lookup 1108 %d\n", inode->i_ino);
 				struct dentry *new_version = NULL;
 
@@ -1143,7 +1144,7 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, str
 				}
 				//dentry->d_op = &yuiha_dentry_operations;
 				//dentry->d_fsdata = new_version;
-			// }
+			}
 
 			printk("ext3_lookup 1117 %d\n", inode->i_ino);
 		}
@@ -1911,8 +1912,8 @@ static int yuiha_copy_inode_info(
 	dst_inode->i_version = src_inode->i_version;
 	dst_inode->i_blocks = src_inode->i_blocks;
   dst_inode->i_bytes = src_inode->i_bytes;
-	dst_inode->i_op = &ext3_file_operations;
-	dst_inode->i_fop = &yuiha_file_operations;
+	dst_inode->i_op = src_inode->i_op;
+	dst_inode->i_fop = src_inode->i_fop;
 	dst_inode->i_sb = src_inode->i_sb;
 	dst_inode->i_bdev = src_inode->i_bdev;
 	//dst_inode->i_generation = src_inode->i_generation;
