@@ -26,8 +26,7 @@
 #include "xattr.h"
 #include "acl.h"
 #include "namei.h"
-
-#define O_VERSION 04000000
+#include "yuiha_flags.h"
 
 /*
  * Called when an inode is released. Note that this is different
@@ -36,6 +35,13 @@
  */
 static int ext3_release_file (struct inode * inode, struct file * filp)
 {
+	struct yuiha_inode_info *yi;
+	struct dentry *dentry = filp->f_dentry,
+								//*parent_version = filp->f_dentry->d_fsdata,
+								*parent = filp->f_dentry->d_parent;
+	struct qstr dname;
+	unsigned long hash;
+
 	if (EXT3_I(inode)->i_state & EXT3_STATE_FLUSH_ON_CLOSE) {
 		filemap_flush(inode->i_mapping);
 		EXT3_I(inode)->i_state &= ~EXT3_STATE_FLUSH_ON_CLOSE;
@@ -51,19 +57,49 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 	if (is_dx(inode) && filp->private_data)
 		ext3_htree_free_dir_info(filp->private_data);
 
+	// only yuihafs
+	yi = YUIHA_I(inode);
+	if (yi->parent_inode) {
+		printk("ext3_release_file 63\n");
+		iput(yi->parent_inode);
+		printk("ext3_release_file 71 %lu\n", dname.hash);
+	}
+
+	return 0;
+}
+
+static int yuiha_parent_file_open(struct file *filp)
+{
+	struct inode *opened_inode = filp->f_dentry,
+							 *parent_inode = NULL;
+	struct yuiha_inode_info *opened_yi = YUIHA_I(opened_inode),
+													*parent_yi = NULL;
+	struct super_block *sb = opened_inode->i_sb;
+
+	// Parent version not found
+	if (!opened_yi->i_parent_ino)
+		return 0;
+
+	if (!opened_yi->parent_inode) {
+		parent_inode = ext3_iget(sb, opened_yi->i_parent_ino);
+		opened_yi->parent_inode = parent_inode;
+	}
+
 	return 0;
 }
 
 static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
-	printk("yuiha_file_open ino=%lu\n", inode->i_ino);
+	printk("yuiha_file_open ino=%lu %lu\n", inode->i_ino, inode->i_count);
 	int ret = generic_file_open(inode, filp);
 	if (ret)
 		return ret;
 
-	if (filp->f_flags & O_VERSION) {
+	if (filp->f_flags & (O_PARENT | O_RDONLY)) {
+		printk("parent version open!!\n");
+	} else if (filp->f_flags & O_VERSION) {
 		printk("versioned!!\n");
-		yuiha_create_snapshot(filp);
+		//yuiha_create_snapshot(filp);
 	}
 
 	return ret;

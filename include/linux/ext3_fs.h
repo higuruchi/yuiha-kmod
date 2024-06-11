@@ -347,8 +347,13 @@ struct ext3_inode {
 struct yuiha_inode {
 	struct ext3_inode i_ext3;
 	__le32 i_parent_ino;
+	__le32 i_parent_generation;
+
 	__le32 i_sibling_ino;
+	__le32 i_sibling_generation;
+
 	__le32 i_child_ino;
+	__le32 i_child_generation;
 };
 
 #define i_size_high	i_dir_acl

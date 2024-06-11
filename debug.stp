@@ -7,6 +7,7 @@ probe module("ext3").statement("yuiha_file_open@file.c:65") {
 	printf("\n");
 }
 
+/*
 probe kernel.statement("iget_locked@inode.c:1078") {
 	printf("iget_locked@inode.c:1078\n");
 	printf("%s\n", $$vars);
@@ -42,6 +43,17 @@ probe kernel.statement("get_new_inode_fast@inode.c:795") {
 	printf("%s\n", $$vars);
 	printf("\n");
 }
+*/
+
+probe kernel.function("release_mounts") {
+	printf("release_mounts\n");
+}
+
+probe module("ext3").function("yuiha_drop_inode") {
+	printf("yuiha_drop_inode %s\n", $$vars);
+	print_backtrace();
+}
+
 /*
 probe kernel.function("get_new_inode_fast").return {
 	printf("get_new_inode_fast@inode.c:return\n");
