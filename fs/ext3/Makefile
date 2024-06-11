@@ -20,7 +20,7 @@ MDIR := /lib/modules/$(KVER)/kernel/fs/ext3/
 PWD := $(shell pwd)
 
 PREINC := -I$(PWD)/../../include
-EXTRA_CFLAGS += -Wall
+EXTRA_CFLAGS += -Wall -g -O0
 
 default:
 	$(MAKE) -C $(KSRC) SUBDIRS=$(PWD) BUILD_DIR=$(PWD) \
