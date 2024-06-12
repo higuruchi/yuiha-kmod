@@ -5,50 +5,33 @@
 - Distribution == Ubuntu10.04
 - Linux Kernel == 2.6.32
 
-### How to create VM of Ubuntu10.04
+### How to create VM of Ubuntu10.04 and debug it using kgdb
 
+<!--
+#### Libvirt
+
+**VM creation**
 ```bash
 $ virt-install \
---name yuiha-vm \
---ram 4096 \
---disk path=/var/lib/libvirt/images/ubuntu1004.img,size=20 \
---vcpus 2 \
---os-variant=ubuntu10.04 \
---network bridge=virbr0 \
---graphics none \
---console pty,target_type=serial \
---location /home/images/ubuntu-10.04-server-amd64.iso \
---extra-args 'console=ttyS0,115200n8 serial'
+  --name yuiha-vm \
+  --ram 4096 \
+  --disk path=<VM disk image path>,size=20 \
+  --vcpus 2 \
+  --os-variant=ubuntu10.04 \
+  --network bridge=virbr0 \
+  --graphics none \
+  --console pty,target_type=serial \
+  --location <Ubuntu10.04 iso file> \
+  --extra-args 'console=ttyS0,115200n8 serial'
 ```
 
-### How to initialize build enviroment
 
-```bash
-$ sudo sed -i -e 's|//.*ubuntu.com/|//old-releases.ubuntu.com/|' /etc/apt/sources.list
-$ sudo apt-get update
-$ sudo apt-get install -y \
-               nfs-common \
-               libncurses-dev \
-               openssh-server
-$ Download Linux kernel source code of 2.6.32
-$ cd linux-2.6.32
-$ make -j2
-$ sudo make modules_install && \
-  sudo make install && \
-  sudo mkinitramfs -o /boot/initrd.img-2.6.32 2.6.32
-$ sed -e "s/GRUB_DEFAULT=0/GRUB_DEFAULT=\"Ubuntu, with Linux 2.6.32\"/" /etc/default/grub | sudo tee /etc/default/grub
-$ sudo update-grub
-$ sudo reboot
-```
-
-### How to use kgdb
-
-**debuggee**
+**Debuggee**
 ```bash
 $ sed -e "s/GRUB_CMDLINE_LINUX_DEFAULT/GRUB_CMDLINE_LINUX_DEFAULT=\"console=ttyS0,115200 kgdboc=ttyS0,115200 nokaslr\"/" /etc/default/grub | sudo tee /etc/default/grub
 ```
 
-**debugger**
+**Debugger**
 To modify the guest domain file, `virsh-edit` command is used.
 
 ```bash
@@ -70,6 +53,84 @@ Add a new `qemu:commandline` tag inside domain which will allow us to pass a par
      <qemu:commandline>
           <qemu:arg value='-s'/>
      </qemu:commandline>
+```
+-->
+
+#### QEMU
+
+**VM creation**
+```
+# Install Ubuntu10.04 to VM
+$ qemu-system-x86_64 \
+	-cpu host \
+	-accel kvm \
+	-boot c \
+	-m 4G \
+	-vga none \
+	-nographic \
+	-cdrom <Ubuntu10.04 iso file> \
+	-drive file=<VM disk image path>,if=virtio
+
+# Start VM
+$ qemu-system-x86_64 \
+	-cpu host \
+	-smp 4 \
+	-accel kvm \
+	-m 4G \
+	-boot d \
+	-vga none \
+	-nographic \
+	-drive file=<VM disk file path>,if=virtio \
+	-chardev pty,id=char0 \
+	-serial chardev:char0 \
+	-chardev pty,id=char1 \
+	-serial chardev:char1 \
+	-monitor unix:<vm unix socket path>,server,nowait
+```
+
+**Debuggee**
+
+```
+$ sudo sh -c "echo ttyS1 > /sys/module/kgdboc/parameters/kgdboc"
+$ sudo sh -c "echo g > /proc/sysrq-trigger"
+```
+
+**Debugger**
+
+Access to the terminal
+```
+$ picocom </dev/pts/*>
+```
+
+Using the kgdb
+```
+$ gdb <vmlinux path>
+(gdb) target remote </dev/pts/*>
+```
+
+Acces to the QEMU monitor
+```
+$ socat - UNIX-CONNECT:<unix socket path>
+```
+
+### How to initialize build enviroment
+
+```bash
+$ sudo sed -i -e 's|//.*ubuntu.com/|//old-releases.ubuntu.com/|' /etc/apt/sources.list
+$ sudo apt-get update
+$ sudo apt-get install -y \
+               nfs-common \
+               libncurses-dev \
+               openssh-server
+$ Download Linux kernel source code of 2.6.32
+$ cd linux-2.6.32
+$ make -j2
+$ sudo make modules_install && \
+  sudo make install && \
+  sudo mkinitramfs -o /boot/initrd.img-2.6.32 2.6.32
+$ sed -e "s/GRUB_DEFAULT=0/GRUB_DEFAULT=\"Ubuntu, with Linux 2.6.32\"/" /etc/default/grub | sudo tee /etc/default/grub
+$ sudo update-grub
+$ sudo reboot
 ```
 
 ## How to build
