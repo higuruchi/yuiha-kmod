@@ -446,8 +446,14 @@ struct inode *ext3_new_inode(handle_t *handle, struct inode * dir, int mode)
 	if (ext3_judge_yuiha(sb->s_type)) {
 		yi = YUIHA_I(inode);
 		yi->i_parent_ino = 0;
+		yi->i_parent_generation = 0;
+
 		yi->i_sibling_ino = 0;
+		yi->i_sibling_generation = 0;
+
 		yi->i_child_ino = 0;
+		yi->i_child_generation = 0;
+
 		yi->parent_inode = NULL;
 		ei = &yi->i_ext3;
 	} else {
