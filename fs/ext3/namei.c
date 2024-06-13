@@ -1074,7 +1074,8 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, str
 	struct ext3_dir_entry_2 * de;
 	struct buffer_head * bh;
 	struct yuiha_inode_info *yi;
-	unsigned long hash = dentry->d_name.hash;
+	unsigned long parent_hash = dentry->d_name.hash,
+								hash = dentry->d_name.hash;
 	struct dentry *parent = nd->path.dentry, *dentry_found;
 
 	if (dentry->d_name.len > EXT3_NAME_LEN)
@@ -1099,26 +1100,43 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, str
 		printk("ext3_lookup 1073 %d %d\n", inode->i_ino, inode->i_count);
 
 		if (S_ISREG(inode->i_mode)) {
-			if (nd->intent.open.flags & (O_PARENT | O_RDONLY)) {
+			if (nd->intent.open.flags & O_PARENT) {
+				// TODO: if parent version is not exist, return error
+
+				// The reason for -1 is that the open flag and
+				// namei flag values are different. 
+				// Details are descriped in open_to_namei_flags function.
+				int acc_mode = (nd->intent.open.flags - 1) & O_ACCMODE;
 				printk("ext3_lookup 1110 %d\n", inode->i_ino);
 				yi = YUIHA_I(inode);
-
-				hash = partial_name_hash(hash, yi->i_parent_generation);
-				hash = partial_name_hash(hash, yi->i_parent_ino);
-				dentry->d_name.hash = end_name_hash(hash);
+				parent_hash = partial_name_hash(parent_hash, yi->i_parent_generation);
+				parent_hash = partial_name_hash(parent_hash, yi->i_parent_ino);
+				dentry->d_name.hash = end_name_hash(parent_hash);
 				dentry_found = d_lookup(parent, &dentry->d_name);
 				if (dentry_found) {
 					printk("ext3_lookup 1111 %d\n", dentry_found->d_inode->i_ino);
 					iput(inode);
-					return dentry_found;
-				}
+					if (acc_mode == O_RDONLY)
+						return dentry_found;
+					parent_inode = dentry_found->d_inode; 
+				} else {
+					parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
+					if (!parent_inode)
+						parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
+					printk("ext3_lookup 1118 %p\n", parent_inode);
+					iput(inode);
 
-				parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
-				if (parent_inode)
-					parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
-				printk("ext3_lookup 1118 %p\n", parent_inode);
-				iput(inode);
-				inode = parent_inode;
+					if (acc_mode == O_RDONLY)
+						inode = parent_inode;
+				}
+				
+				// if writable mode
+				if (acc_mode) {
+					struct dentry *new_version =
+							yuiha_create_snapshot(dentry->d_parent, parent_inode, dentry);
+					//dget(new_version);
+					return new_version;
+				}
 			} else {
 				printk("ext3_lookup 1108 %d\n", inode->i_ino);
 				struct dentry *new_version = NULL;
@@ -1802,6 +1820,7 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode,
 	int err, retries = 0;
 	struct file_system_type *fs_type = dir->i_sb->s_type;
 	unsigned long hash = dentry->d_name.hash;
+	struct yuiha_inode_info *yi;
 	printk("ext3_create 1790\n");
 
 retry:
@@ -1817,8 +1836,11 @@ retry:
 	inode = ext3_new_inode (handle, dir, mode);
 	err = PTR_ERR(inode);
 	if (!IS_ERR(inode)) {
-		// TODO: only yuihafs function
-		if (S_ISREG(inode->i_mode)) {
+		if (S_ISREG(inode->i_mode) && ext3_judge_yuiha(fs_type)) {
+			yi = YUIHA_I(inode);
+			yi->i_sibling_ino = inode->i_ino;
+			yi->i_sibling_generation = inode->i_generation;
+
 			hash = partial_name_hash(hash, inode->i_generation);
 			hash = partial_name_hash(hash, inode->i_ino);
 			dentry->d_name.hash = end_name_hash(hash);
@@ -1945,9 +1967,9 @@ static void yuiha_clear_producer_flg(struct inode *version_i)
 
 static int
 yuiha_add_version_to_tree(
-				handle_t *handle,
-				struct yuiha_inode_info *new_version_yi,
-				struct yuiha_inode_info *target_version_yi)
+	handle_t *handle,
+	struct yuiha_inode_info *new_version_yi,
+	struct yuiha_inode_info *target_version_yi)
 {
 	struct inode *parent_inode = NULL,
 							 *new_version_inode = &new_version_yi->i_ext3.vfs_inode,
@@ -1955,23 +1977,16 @@ yuiha_add_version_to_tree(
 	struct yuiha_inode_info *parent_yi;
 	struct super_block *sb = target_version_inode->i_sb;
 	
-	new_version_yi->i_parent_ino = 0;
-	new_version_yi->i_parent_generation = 0;
-
-	new_version_yi->i_sibling_ino = 0;
-	new_version_yi->i_sibling_generation = 0;
-
-	new_version_yi->i_child_ino = 0;
-	new_version_yi->i_child_generation = 0;
-
 	if (!target_version_yi->i_child_ino) {
 		// There is no child version
 		if (target_version_yi->parent_inode) {
 			parent_inode = target_version_yi->parent_inode;
 			parent_yi = YUIHA_I(parent_inode);
 		} else if (target_version_yi->i_parent_ino) {
-	  	parent_inode = ext3_iget(sb, target_version_yi->i_parent_ino);
-	  	parent_yi = YUIHA_I(parent_inode);
+			parent_inode = ilookup(sb, target_version_yi->i_parent_ino);
+			if (!parent_inode)
+				parent_inode = ext3_iget(sb, target_version_yi->i_parent_ino);
+			parent_yi = YUIHA_I(parent_inode);
 	  }
 
 	  new_version_yi->i_child_ino = target_version_inode->i_ino;
@@ -1980,8 +1995,25 @@ yuiha_add_version_to_tree(
 	  new_version_yi->i_parent_ino = target_version_yi->i_parent_ino;
 		new_version_yi->i_parent_generation = target_version_yi->i_parent_generation;
 
+		// TODO: consider cycling list
+		if (target_version_yi->i_sibling_ino == target_version_inode->i_ino) {
+			new_version_yi->i_sibling_ino = new_version_inode->i_ino;
+			new_version_yi->i_sibling_generation = new_version_inode->i_generation;
+		} else {
+			new_version_yi->i_sibling_ino = target_version_yi->i_sibling_ino;
+			new_version_yi->i_sibling_generation = 
+					target_version_yi->i_sibling_generation;
+		}
+
 	  target_version_yi->i_parent_ino = new_version_inode->i_ino;
 	  target_version_yi->i_parent_generation = new_version_inode->i_generation;
+
+		target_version_yi->i_child_ino = 0;
+		target_version_yi->i_child_generation = 0;
+
+		target_version_yi->i_sibling_ino = target_version_inode->i_ino;
+		target_version_yi->i_sibling_generation = target_version_inode->i_generation;
+
 	  if (parent_inode)
 	  	parent_yi->i_child_ino = new_version_inode->i_ino;
 
@@ -1991,6 +2023,26 @@ yuiha_add_version_to_tree(
 	  }
 	} else {
 		// There are children version
+		// read child version
+		// insert child's sibling list
+		// parent version point to inserted version
+		struct inode *child_version_inode;
+		struct yuiha_inode_info *child_version_yi;
+
+		child_version_inode = ilookup(sb, target_version_yi->i_child_ino);
+		if (!child_version_inode)
+			child_version_inode = ext3_iget(sb, target_version_yi->i_child_ino);
+		child_version_yi = YUIHA_I(child_version_inode);
+
+		new_version_yi->i_sibling_ino = child_version_yi->i_sibling_ino;
+		new_version_yi->i_sibling_generation = child_version_yi->i_sibling_generation;
+
+		new_version_yi->i_parent_ino = child_version_yi->i_parent_ino;
+		new_version_yi->i_parent_generation = child_version_yi->i_parent_generation;
+
+		child_version_yi->i_sibling_ino = new_version_inode->i_ino;
+		child_version_yi->i_sibling_generation = new_version_inode->i_generation;
+
 		printk("branch versioning\n");
 	}
 
@@ -2063,7 +2115,6 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 	return 0;
 }
 
-//int yuiha_create_snapshot(struct file *filp)
 struct dentry * yuiha_create_snapshot(
 				struct dentry *parent,
 				struct inode *new_version_target_i,
@@ -2071,12 +2122,11 @@ struct dentry * yuiha_create_snapshot(
 {
 	int err;
 	struct inode *new_version_i, *dir = parent->d_inode;
-							 //*new_version_target_i = filp->f_dentry->d_inode,
-						   //*dir_i = filp->f_dentry->d_parent->d_inode;
 	struct yuiha_inode_info *new_version_target_yi, *new_version_yi;
 	struct dentry *new_version;
 	unsigned long hash;
 	handle_t *handle;
+	int do_dput_flg = 0;
 
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS(dir->i_sb) +
 					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3 +
@@ -2091,6 +2141,8 @@ struct dentry * yuiha_create_snapshot(
 	if (!IS_ERR(new_version_i)) {
 		new_version_target_yi = YUIHA_I(new_version_target_i);
 		new_version_yi = YUIHA_I(new_version_i);
+
+		do_dput_flg = new_version_target_yi->i_parent_ino;
 
 		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
 		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
@@ -2109,7 +2161,9 @@ struct dentry * yuiha_create_snapshot(
 		printk("yuiha_create_snapshot 2095 %lu\n", new_version->d_name.hash);
 
 		d_splice_alias(new_version_i, new_version);
-		dput(new_version);
+		if (!do_dput_flg) {
+			dput(new_version);
+		}
 	}
 
 	printk("yuiha_create_snapshot 2100 %d %d\n",
