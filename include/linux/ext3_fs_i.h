@@ -154,8 +154,11 @@ struct yuiha_inode_info {
 	__u32 i_parent_ino;
 	__u32 i_parent_generation;
 
-	__u32 i_sibling_ino;
-	__u32 i_sibling_generation;
+	__u32 i_sibling_next_ino;
+	__u32 i_sibling_next_generation;
+
+	__u32 i_sibling_prev_ino;
+	__u32 i_sibling_prev_generation;
 
 	__u32 i_child_ino;
 	__u32 i_child_generation;

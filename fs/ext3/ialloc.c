@@ -407,6 +407,21 @@ static int find_group_other(struct super_block *sb, struct inode *parent)
 	return -1;
 }
 
+static void
+yuiha_set_tree_link_zero(struct yuiha_inode_info *yi)
+{
+	yi->i_parent_ino = 0;
+	yi->i_parent_generation = 0;
+
+	yi->i_sibling_next_ino = 0;
+	yi->i_sibling_next_generation = 0;
+
+	yi->i_sibling_prev_ino = 0;
+	yi->i_sibling_prev_generation = 0;
+
+	yi->i_child_ino = 0;
+	yi->i_child_generation = 0;
+}
 /*
  * There are two policies for allocating an inode.  If the new inode is
  * a directory, then a forward search is made for a block group with both
@@ -445,15 +460,7 @@ struct inode *ext3_new_inode(handle_t *handle, struct inode * dir, int mode)
 
 	if (ext3_judge_yuiha(sb->s_type)) {
 		yi = YUIHA_I(inode);
-		yi->i_parent_ino = 0;
-		yi->i_parent_generation = 0;
-
-		yi->i_sibling_ino = 0;
-		yi->i_sibling_generation = 0;
-
-		yi->i_child_ino = 0;
-		yi->i_child_generation = 0;
-
+		yuiha_set_tree_link_zero(yi);
 		yi->parent_inode = NULL;
 		ei = &yi->i_ext3;
 	} else {

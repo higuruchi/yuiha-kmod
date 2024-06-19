@@ -41,6 +41,7 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 								*parent = filp->f_dentry->d_parent;
 	struct qstr dname;
 	unsigned long hash;
+	printk("ext3_release_file 44 %lu %lu\n", inode->i_ino, inode->i_count);
 
 	if (EXT3_I(inode)->i_state & EXT3_STATE_FLUSH_ON_CLOSE) {
 		filemap_flush(inode->i_mapping);
@@ -60,9 +61,9 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 	// only yuihafs
 	yi = YUIHA_I(inode);
 	if (yi->parent_inode) {
-		printk("ext3_release_file 63\n");
-		iput(yi->parent_inode);
-		printk("ext3_release_file 71 %lu\n", dname.hash);
+		printk("ext3_release_file 63 %lu %lu\n", inode->i_ino, inode->i_count);
+		//iput(yi->parent_inode);
+		//yi->parent_inode = NULL;
 	}
 
 	return 0;
@@ -92,15 +93,15 @@ static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
 	printk("yuiha_file_open ino=%lu %lu\n", inode->i_ino, inode->i_count);
 	int ret = generic_file_open(inode, filp);
-	if (ret)
-		return ret;
+	// if (ret)
+	// 	return ret;
 
-	if (filp->f_flags & (O_PARENT | O_RDONLY)) {
-		printk("parent version open!!\n");
-	} else if (filp->f_flags & O_VERSION) {
-		printk("versioned!!\n");
-		//yuiha_create_snapshot(filp);
-	}
+	// if (filp->f_flags & (O_PARENT | O_RDONLY)) {
+	// 	printk("parent version open!!\n");
+	// } else if (filp->f_flags & O_VERSION) {
+	// 	printk("versioned!!\n");
+	// 	yuiha_create_snapshot(filp);
+	// }
 
 	return ret;
 }

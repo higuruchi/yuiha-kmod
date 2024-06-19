@@ -11,5 +11,7 @@ directory ../fs/ext3
 add-symbol-file ../fs/ext3/ext3.ko -s .text ${text_address} -s .bss ${bss_address} -s .data ${data_address}
 EOF
 
+# sudo ip addr add 10.10.0.1/24 dev eth0
+
 sudo sh -c "echo ttyS1 > /sys/module/kgdboc/parameters/kgdboc"
-sudo sh -c "echo g > /proc/sysrq-trigger"
+# sudo sh -c "echo g > /proc/sysrq-trigger"
