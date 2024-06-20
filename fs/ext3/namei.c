@@ -1134,8 +1134,8 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, str
 				if (acc_mode) {
 					struct dentry *new_version =
 							yuiha_create_snapshot(dentry->d_parent, parent_inode, dentry);
-					//dget(new_version);
-					return new_version;
+          //dput(new_version);
+					return dentry_found;
 				}
 			} else {
 				printk("ext3_lookup 1108 %d\n", inode->i_ino);
@@ -2355,7 +2355,6 @@ struct dentry * yuiha_create_snapshot(
 	struct dentry *new_version;
 	unsigned long hash;
 	handle_t *handle;
-	int do_dput_flg = 0;
 
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS(dir->i_sb) +
 					EXT3_INDEX_EXTRA_TRANS_BLOCKS + 3 +
@@ -2370,8 +2369,6 @@ struct dentry * yuiha_create_snapshot(
 	if (!IS_ERR(new_version_i)) {
 		new_version_target_yi = YUIHA_I(new_version_target_i);
 		new_version_yi = YUIHA_I(new_version_i);
-
-		do_dput_flg = new_version_target_yi->i_parent_ino;
 
 		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
 		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
@@ -2390,9 +2387,7 @@ struct dentry * yuiha_create_snapshot(
 		printk("yuiha_create_snapshot 2095 %lu\n", new_version->d_name.hash);
 
 		d_splice_alias(new_version_i, new_version);
-		if (!do_dput_flg) {
-			dput(new_version);
-		}
+		dput(new_version);
 	}
 
 	printk("yuiha_create_snapshot 2100 %d %d\n",
