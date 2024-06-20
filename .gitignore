@@ -78,3 +78,4 @@ GTAGS
 
 exp/ddd
 exp/*.csv
+debug/gdb_script

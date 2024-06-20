@@ -1924,14 +1924,7 @@ ext3_readpages(struct file *file, struct address_space *mapping,
 static void ext3_invalidatepage(struct page *page, unsigned long offset)
 {
 	struct inode *inode = page->mapping->host;
-	printk("ext3_invalidatepage 1926 %p\n", page);
-	printk("ext3_invalidatepage 1926 %p\n", page->mapping);
-	printk("ext3_invalidatepage 1926 %p %d\n", page->mapping->host, inode->i_ino);
-	printk("ext3_invalidatepage 1926 %p\n", inode->i_sb);
-	printk("ext3_invalidatepage 1926 %p\n", EXT3_SB(inode->i_sb));
-	printk("ext3_invalidatepage 1926 %p\n", EXT3_SB(inode->i_sb)->s_journal);
 	journal_t *journal = EXT3_JOURNAL(page->mapping->host);
-	printk("ext3_invalidatepage 1928 %d\n", page->mapping->host->i_ino);
 
 	/*
 	 * If it's a full truncate we just forget about the pending dirtying
@@ -3002,23 +2995,17 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_not_journal_file;
 
-	printk("ext3_iget 2996\n");
 	inode = iget_locked(sb, ino);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 	if (!(inode->i_state & I_NEW))
 		return inode;
 
-	printk("ext3_iget 3002\n");
 	is_not_journal_file = es->s_journal_inum != inode->i_ino;
 	if (ext3_judge_yuiha(fs_type)) {
 		yi = YUIHA_I(inode);
 		ei = &yi->i_ext3;
-
 		yi->parent_inode = NULL;
-		printk("ext3_iget 3008\n");
-		yi->parent_inode = NULL;
-		printk("ext3_iget 3011\n");
 	} else {
 		ei = EXT3_I(inode);
 	}
@@ -3154,9 +3141,13 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 			yi->i_parent_generation =
 					le32_to_cpu(yuiha_raw_inode->i_parent_generation);
 
-			yi->i_sibling_ino = le32_to_cpu(yuiha_raw_inode->i_sibling_ino);
-			yi->i_sibling_generation =
-					le32_to_cpu(yuiha_raw_inode->i_sibling_generation);
+			yi->i_sibling_next_ino = le32_to_cpu(yuiha_raw_inode->i_sibling_next_ino);
+			yi->i_sibling_next_generation =
+					le32_to_cpu(yuiha_raw_inode->i_sibling_next_generation);
+
+			yi->i_sibling_prev_ino = le32_to_cpu(yuiha_raw_inode->i_sibling_prev_ino);
+			yi->i_sibling_prev_generation =
+					le32_to_cpu(yuiha_raw_inode->i_sibling_prev_generation);
 
 			yi->i_child_ino = le32_to_cpu(yuiha_raw_inode->i_child_ino);
 			yi->i_child_generation =
@@ -3325,8 +3316,13 @@ again:
 		yuiha_raw_inode->i_parent_ino = cpu_to_le32(yi->i_parent_ino);
 		yuiha_raw_inode->i_parent_generation = cpu_to_le32(yi->i_parent_generation);
 
-		yuiha_raw_inode->i_sibling_ino = cpu_to_le32(yi->i_sibling_ino);
-		yuiha_raw_inode->i_sibling_generation = cpu_to_le32(yi->i_sibling_generation);
+		yuiha_raw_inode->i_sibling_next_ino = cpu_to_le32(yi->i_sibling_next_ino);
+		yuiha_raw_inode->i_sibling_next_generation =
+				cpu_to_le32(yi->i_sibling_next_generation);
+
+		yuiha_raw_inode->i_sibling_prev_ino = cpu_to_le32(yi->i_sibling_prev_ino);
+		yuiha_raw_inode->i_sibling_prev_generation =
+				cpu_to_le32(yi->i_sibling_prev_generation);
 
 		yuiha_raw_inode->i_child_ino = cpu_to_le32(yi->i_child_ino);
 		yuiha_raw_inode->i_child_generation = cpu_to_le32(yi->i_child_generation);

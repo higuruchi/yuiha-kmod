@@ -349,8 +349,11 @@ struct yuiha_inode {
 	__le32 i_parent_ino;
 	__le32 i_parent_generation;
 
-	__le32 i_sibling_ino;
-	__le32 i_sibling_generation;
+	__le32 i_sibling_next_ino;
+	__le32 i_sibling_next_generation;
+
+	__le32 i_sibling_prev_ino;
+	__le32 i_sibling_prev_generation;
 
 	__le32 i_child_ino;
 	__le32 i_child_generation;
