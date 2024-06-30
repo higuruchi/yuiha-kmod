@@ -100,6 +100,7 @@ static int __yuiha_block_prepare_write(
 				clear_buffer_shared(parent_bh);
 			}
 		}
+    // TODO: need clearshared(page)?
 		flush_dcache_page(parent_page);
 		mark_page_accessed(parent_page);
 	}
@@ -127,10 +128,10 @@ static int __yuiha_block_prepare_write(
 			if (err)
 				break;
 
-			if (buffer_shared(bh)) {
-				set_buffer_uptodate(bh);
-				clear_buffer_shared(bh);
-			}
+			// if (buffer_shared(bh)) {
+			// 	set_buffer_uptodate(bh);
+			// 	clear_buffer_shared(bh);
+			// }
 
 			if (buffer_new(bh)) {
 				unmap_underlying_metadata(bh->b_bdev,
