@@ -54,12 +54,9 @@ static int __yuiha_block_prepare_write(
 
 	// copy buffer_head structure to parent_inode cache.
 	if (PageDirty(page) && PageShared(page)) {
-		printk("__yuiha_block_prepare_write 52\n");
-
 		if (parent_page && !page_has_buffers(parent_page))
 			create_empty_buffers(parent_page, blocksize, 0);
 		
-		printk("__yuiha_block_prepare_write 62 %d\n", parent_inode->i_ino);
 		parent_head = page_buffers(parent_page);
 		for (bh = head, parent_bh = parent_head, block_start = 0;
 					bh != head || parent_bh != parent_head || !block_start;
@@ -71,31 +68,9 @@ static int __yuiha_block_prepare_write(
 
 				parent_bh->b_state = bh->b_state;
 				parent_bh->b_blocknr = bh->b_blocknr;
-				printk("__yuiha_block_prepare_write 72 %d\n", parent_bh->b_blocknr);
-				printk("__yuiha_block_prepare_write 81 %d\n", buffer_dirty(parent_bh));
 				parent_bh->b_bdev = bh->b_bdev;
 				parent_bh->b_size = bh->b_size;
 				memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
-
-				printk("__yuiha_block_prepare_write 84 %d %d %d %d %s %p\n", 
-								buffer_dirty(bh),
-								buffer_uptodate(bh),
-								buffer_mapped(bh),
-								bh->b_size,
-								bh->b_data,
-								bh->b_data);
-				printk("__yuiha_block_prepare_write 94 %d %p\n",
-								buffer_jbd(bh),
-								bh->b_data);
-				printk("__yuiha_block_prepare_write 97 %d %d %d %d %s\n", 
-								buffer_dirty(parent_bh),
-								buffer_uptodate(parent_bh),
-								buffer_mapped(parent_bh),
-								parent_bh->b_size,
-								parent_bh->b_data);
-				printk("__yuiha_block_prepare_write 103 %d %p\n",
-								buffer_jbd(bh),
-								parent_bh->b_data);
 
 				clear_buffer_shared(parent_bh);
 			}
@@ -120,18 +95,15 @@ static int __yuiha_block_prepare_write(
 			clear_buffer_new(bh);
 
 		if (!buffer_mapped(bh) || buffer_shared(bh)) {
-			printk("__yuiha_block_prepare_write 133 %d %d\n",
-							!buffer_mapped(bh), buffer_shared(bh));
-
 			WARN_ON(bh->b_size != blocksize);
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				break;
 
-			// if (buffer_shared(bh)) {
-			// 	set_buffer_uptodate(bh);
-			// 	clear_buffer_shared(bh);
-			// }
+			if (buffer_shared(bh)) {
+        set_buffer_uptodate(bh);
+        clear_buffer_shared(bh);
+			}
 
 			if (buffer_new(bh)) {
 				unmap_underlying_metadata(bh->b_bdev,

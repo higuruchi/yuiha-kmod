@@ -2005,12 +2005,14 @@ yuiha_walk_change_parent(
     if (!tmp_next_inode)
       tmp_next_inode = ext3_iget(parent_inode->i_sb, tmp_ino);
     p = YUIHA_I(tmp_next_inode);
+
     p->i_parent_ino = parent_inode->i_ino;
     p->i_parent_generation = parent_inode->i_generation;
     p_inode = &p->i_ext3.vfs_inode;
     ext3_mark_inode_dirty(handle, p_inode);
     iput(p_inode);
   }
+
 }
 
 /*
@@ -2106,46 +2108,45 @@ retry:
 }
 
 static int yuiha_copy_inode_info(
-				struct yuiha_inode_info *dst_yuiha_ei,
-				struct yuiha_inode_info *src_yuiha_ei)
+    struct yuiha_inode_info *dst_yuiha_ei,
+    struct yuiha_inode_info *src_yuiha_ei)
 {
-	struct ext3_inode_info *dst_ext3_ei = &dst_yuiha_ei->i_ext3,
-												 *src_ext3_ei = &src_yuiha_ei->i_ext3;
-	struct inode *dst_inode = &dst_ext3_ei->vfs_inode,
-							 *src_inode = &src_ext3_ei->vfs_inode;
-	struct address_space *const dst_mapping = &dst_inode->i_data,
-											 *const src_mapping = &src_inode->i_data;
-
-	memcpy(dst_ext3_ei->i_data,
-					src_ext3_ei->i_data,
-					sizeof(dst_ext3_ei->i_data));
-	dst_ext3_ei->i_flags = src_ext3_ei->i_flags;
-	dst_ext3_ei->i_file_acl = src_ext3_ei->i_file_acl;
-	dst_ext3_ei->i_dir_acl = src_ext3_ei->i_dir_acl;
-	dst_ext3_ei->i_dtime = src_ext3_ei->i_dtime;
-	dst_ext3_ei->i_block_group = src_ext3_ei->i_block_group;
-	dst_ext3_ei->i_state = EXT3_STATE_NEW;
-	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
-	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
-
-	dst_inode->i_mode = src_inode->i_mode;
-	dst_inode->i_uid = src_inode->i_uid;
-	dst_inode->i_gid = src_inode->i_gid;
-	dst_inode->i_rdev = src_inode->i_rdev;
-	dst_inode->i_size = src_inode->i_size;
-	dst_inode->i_atime = src_inode->i_atime;
-	dst_inode->i_mtime = src_inode->i_mtime;
-	dst_inode->i_ctime = src_inode->i_ctime;
-	dst_inode->i_blkbits = src_inode->i_blkbits;
-	dst_inode->i_version = src_inode->i_version;
-	dst_inode->i_blocks = src_inode->i_blocks;
+  struct ext3_inode_info *dst_ext3_ei = &dst_yuiha_ei->i_ext3,
+                         *src_ext3_ei = &src_yuiha_ei->i_ext3;
+  struct inode *dst_inode = &dst_ext3_ei->vfs_inode,
+               *src_inode = &src_ext3_ei->vfs_inode;
+  struct address_space *const dst_mapping = &dst_inode->i_data,
+                       *const src_mapping = &src_inode->i_data;
+  
+  memcpy(dst_ext3_ei->i_data, src_ext3_ei->i_data,
+      sizeof(dst_ext3_ei->i_data));
+  dst_ext3_ei->i_flags = src_ext3_ei->i_flags;
+  dst_ext3_ei->i_file_acl = src_ext3_ei->i_file_acl;
+  dst_ext3_ei->i_dir_acl = src_ext3_ei->i_dir_acl;
+  dst_ext3_ei->i_dtime = src_ext3_ei->i_dtime;
+  dst_ext3_ei->i_block_group = src_ext3_ei->i_block_group;
+  dst_ext3_ei->i_state = EXT3_STATE_NEW;
+  dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
+  dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
+  
+  dst_inode->i_mode = src_inode->i_mode;
+  dst_inode->i_uid = src_inode->i_uid;
+  dst_inode->i_gid = src_inode->i_gid;
+  dst_inode->i_rdev = src_inode->i_rdev;
+  dst_inode->i_size = src_inode->i_size;
+  dst_inode->i_atime = src_inode->i_atime;
+  dst_inode->i_mtime = src_inode->i_mtime;
+  dst_inode->i_ctime = src_inode->i_ctime;
+  dst_inode->i_blkbits = src_inode->i_blkbits;
+  dst_inode->i_version = src_inode->i_version;
+  dst_inode->i_blocks = src_inode->i_blocks;
   dst_inode->i_bytes = src_inode->i_bytes;
-	dst_inode->i_op = src_inode->i_op;
-	dst_inode->i_fop = src_inode->i_fop;
-	dst_inode->i_bdev = src_inode->i_bdev;
-	ext3_set_aops(dst_inode);
-
-	return 0;
+  dst_inode->i_op = src_inode->i_op;
+  dst_inode->i_fop = src_inode->i_fop;
+  dst_inode->i_bdev = src_inode->i_bdev;
+  ext3_set_aops(dst_inode);
+  
+  return 0;
 }
 
 static void yuiha_clear_producer_flg(struct inode *version_i)
