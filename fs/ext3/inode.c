@@ -700,7 +700,8 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 		branch[n].key = cpu_to_le32(new_blocks[n]);
 		*branch[n].p = branch[n].key;
 		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
-			*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
+      *branch[n].p = cpu_to_le32(set_producer_flg(new_blocks[n]));
+			//*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
 		}
 
 		if ( n == indirect_blks) {

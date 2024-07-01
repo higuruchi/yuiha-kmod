@@ -304,6 +304,19 @@ void ext3_warning (struct super_block * sb, const char * function,
 	va_end(args);
 }
 
+void yuiha_warning (struct super_block * sb, const char * function,
+		   const char * fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	printk(KERN_WARNING "YUIHA-fs warning (device %s): %s: ",
+	       sb->s_id, function);
+	vprintk(fmt, args);
+	printk("\n");
+	va_end(args);
+}
+
 void ext3_update_dynamic_rev(struct super_block *sb)
 {
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
