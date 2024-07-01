@@ -2005,14 +2005,12 @@ yuiha_walk_change_parent(
     if (!tmp_next_inode)
       tmp_next_inode = ext3_iget(parent_inode->i_sb, tmp_ino);
     p = YUIHA_I(tmp_next_inode);
-
     p->i_parent_ino = parent_inode->i_ino;
     p->i_parent_generation = parent_inode->i_generation;
     p_inode = &p->i_ext3.vfs_inode;
     ext3_mark_inode_dirty(handle, p_inode);
     iput(p_inode);
   }
-
 }
 
 /*
