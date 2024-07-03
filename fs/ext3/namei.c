@@ -2173,10 +2173,7 @@ yuiha_add_version_to_tree(
 	struct yuiha_inode_info *parent_yi, *prev_target_version_yi = NULL;
   struct super_block *sb = target_version_inode->i_sb;
 
-  if (target_version_yi->parent_inode) {
-    parent_inode = target_version_yi->parent_inode;
-    parent_yi = YUIHA_I(parent_inode);
-  } else if (target_version_yi->i_parent_ino) {
+  if (target_version_yi->i_parent_ino) {
     parent_inode = ilookup(sb, target_version_yi->i_parent_ino);
     if (!parent_inode)
       parent_inode = ext3_iget(sb, target_version_yi->i_parent_ino);
@@ -2196,7 +2193,7 @@ yuiha_add_version_to_tree(
       if (!prev_target_version_inode)
         prev_target_version_inode =
           ext3_iget(sb, target_version_yi->i_sibling_prev_ino);
-        prev_target_version_yi = YUIHA_I(prev_target_version_inode);
+      prev_target_version_yi = YUIHA_I(prev_target_version_inode);
 
 			yuiha_remove_from_sibling(handle, target_version_yi);
       yuiha_insert_to_sibling(handle, prev_target_version_yi, new_version_yi);
@@ -2206,10 +2203,8 @@ yuiha_add_version_to_tree(
 		yuiha_child_set_zero(handle, target_version_yi);
 		yuiha_sibling_link_self(handle, target_version_yi);
 
-	  if (parent_inode) {
+	  if (parent_inode)
       parent_yi->i_child_ino = new_version_inode->i_ino;
-      iput(parent_inode);	
-    }
     if (prev_target_version_inode)
       iput(prev_target_version_inode);
   } else {
@@ -2255,8 +2250,8 @@ yuiha_add_version_to_tree(
       iput(prev_target_version_inode);
 	}
 
-	//atomic_inc(&new_version_inode->i_count);
 	target_version_yi->parent_inode = new_version_inode;
+  iput(parent_inode);	
 
 	return 0;
 }
