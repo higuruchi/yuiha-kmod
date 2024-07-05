@@ -1,2 +1,5 @@
-#define O_VERSION (1 << 22)
-#define O_PARENT (1 << 23)
+#include <linux/fcntl.h>
+
+#define O_VERSION 020000000
+#define O_PARENT 040000000
+#define O_VSEARCH 0200000000
