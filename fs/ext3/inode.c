@@ -433,7 +433,7 @@ static Indirect *yuiha_get_branch(struct inode *inode, int depth,
 			if (!test_producer_flg(le32_to_cpu(chain->key))) {
 				set_buffer_shared(bh);
 			}
-		  chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
+		  p->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(p->key)));
 		}
 		/* Reader: end */
 		if (!p->key)
@@ -700,8 +700,8 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 		branch[n].key = cpu_to_le32(new_blocks[n]);
 		*branch[n].p = branch[n].key;
 		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
-      *branch[n].p = cpu_to_le32(set_producer_flg(new_blocks[n]));
-			//*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
+      //*branch[n].p = cpu_to_le32(set_producer_flg(new_blocks[n]));
+			*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
 		}
 
 		if ( n == indirect_blks) {
@@ -930,7 +930,7 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 			chain[i] = cow_chain[i];
 			continue;
 		}
-		ext3_journal_dirty_metadata(handle, chain[i].bh);
+		//ext3_journal_dirty_metadata(handle, chain[i].bh);
 		brelse(chain[i].bh);
 		chain[i] = cow_chain[i];
 	}
