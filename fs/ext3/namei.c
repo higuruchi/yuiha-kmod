@@ -1068,22 +1068,27 @@ const struct dentry_operations yuiha_dentry_operations = {
 	.d_iput = yuiha_iput,
 };
 
-static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, struct nameidata *nd)
+static struct dentry *ext3_lookup(struct inode * dir,
+    struct dentry *dentry, struct nameidata *nd)
 {
-	struct inode * inode, *parent_inode;
+	struct inode *inode, *parent_inode, *search_inode;
 	struct ext3_dir_entry_2 * de;
 	struct buffer_head * bh;
-	struct yuiha_inode_info *yi;
+	struct yuiha_inode_info *yi, *search_yi;
 	unsigned long parent_hash = dentry->d_name.hash,
-								hash = dentry->d_name.hash;
-	struct dentry *parent = nd->path.dentry, *dentry_found;
+                search_hash = dentry->d_name.hash,
+                hash = dentry->d_name.hash;
+	struct dentry *parent = nd->path.dentry,
+                *dentry_found = NULL,
+                *new_version;
+	int acc_mode = (nd->intent.open.flags - 1) & O_ACCMODE,
+      open_flag = nd->intent.open.flags;
 
 	if (dentry->d_name.len > EXT3_NAME_LEN)
 		return ERR_PTR(-ENAMETOOLONG);
 
 	bh = ext3_find_entry(dir, &dentry->d_name, &de);
 	inode = NULL;
-	printk("ext3_lookup 1090\n");
 	if (bh) {
 		unsigned long ino = le32_to_cpu(de->inode);
 		brelse (bh);
@@ -1094,78 +1099,102 @@ static struct dentry *ext3_lookup(struct inode * dir, struct dentry *dentry, str
 		}
 
 		inode = ilookup(dir->i_sb, ino);
-		if (!inode) {
-			printk("ext3_lookup 1096\n");
+		if (!inode)
 			inode = ext3_iget(dir->i_sb, ino);
-		}
-		printk("ext3_lookup 1073 %d %d\n", inode->i_ino, inode->i_count);
 
 		if (S_ISREG(inode->i_mode)) {
 			yi = YUIHA_I(inode);
-			if (nd->intent.open.flags & O_PARENT) {
+
+      if ((open_flag & O_VSEARCH) && (open_flag & O_CREAT)) {
+        int search_ino = nd->intent.open.create_mode;
+
+				search_inode = ilookup(inode->i_sb, search_ino);
+				if (!search_inode)
+					search_inode = ext3_iget(dir->i_sb, search_ino);
+        search_yi = YUIHA_I(search_inode);
+        // TODO: if specified not exist inode number, return error
+        
+        iput(inode);
+        if (!(nd->intent.open.flags & O_PARENT)) {
+				  search_hash = partial_name_hash(search_hash, search_inode->i_generation);
+				  search_hash = partial_name_hash(search_hash, search_inode->i_ino);
+				  dentry->d_name.hash = end_name_hash(search_hash);
+				  dentry_found = d_lookup(parent, &dentry->d_name);
+
+          // if open file with writable mode, create a new snapshot
+          if (acc_mode)
+            new_version =
+              yuiha_create_snapshot(dentry->d_parent, search_inode, dentry);
+
+          if (dentry_found) {
+            iput(search_inode);
+            return dentry_found;
+          }
+
+          inode = search_inode;
+          goto dentry_cache_not_exists;
+        } else {
+          inode = search_inode;
+          yi = YUIHA_I(search_inode);
+        }
+      }
+
+			if (open_flag & O_PARENT) {
 				// TODO: if parent version is not exist, return error
 
 				// The reason for -1 is that the open flag and
 				// namei flag values are different. 
 				// Details are descriped in open_to_namei_flags function.
-				int acc_mode = (nd->intent.open.flags - 1) & O_ACCMODE;
-				printk("ext3_lookup 1110 %d\n", inode->i_ino);
+
 				parent_hash = partial_name_hash(parent_hash, yi->i_parent_generation);
 				parent_hash = partial_name_hash(parent_hash, yi->i_parent_ino);
 				dentry->d_name.hash = end_name_hash(parent_hash);
 				dentry_found = d_lookup(parent, &dentry->d_name);
-				if (dentry_found) {
-					printk("ext3_lookup 1111 %d\n", dentry_found->d_inode->i_ino);
-					iput(inode);
-					if (acc_mode == O_RDONLY)
-						return dentry_found;
-					parent_inode = dentry_found->d_inode; 
-				} else {
-					parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
-					if (!parent_inode)
-						parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
-					printk("ext3_lookup 1118 %p\n", parent_inode);
-					iput(inode);
 
-					if (acc_mode == O_RDONLY)
-						inode = parent_inode;
-				}
-				
-				// if writable mode
-				if (acc_mode) {
-					struct dentry *new_version =
-							yuiha_create_snapshot(dentry->d_parent, parent_inode, dentry);
-					return dentry_found;
-				}
-			} else {
-				printk("ext3_lookup 1108 %d\n", inode->i_ino);
-				struct dentry *new_version = NULL;
+        if (dentry_found)
+          parent_inode = dentry_found->d_inode;
+        else {
+				  parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
+				  if (!parent_inode)
+					  parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
+        }
+				iput(inode);
 
-				if (nd->intent.open.flags & O_VERSION) {
-					printk("ext3_lookup 1121 O_VERSION\n");
+        // if open file with writable mode, create a new snapshot
+        if (acc_mode)
 					new_version =
-							yuiha_create_snapshot(dentry->d_parent, inode, dentry);				
-				} else {
-		      if (!yi->parent_inode && yi->i_parent_ino) {
-						yi->parent_inode = ilookup(dir->i_sb, yi->i_parent_ino);
-						if (!yi->parent_inode)
-							yi->parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
-	        }
-				}
+							yuiha_create_snapshot(dentry->d_parent, parent_inode, dentry);
 
-				hash = partial_name_hash(hash, inode->i_generation);
-				hash = partial_name_hash(hash, inode->i_ino);
-				dentry->d_name.hash = end_name_hash(hash);
-				dentry_found = d_lookup(parent, &dentry->d_name);
+				if (dentry_found)
+          return dentry_found;
 
-				if (dentry_found) {
-					printk("ext3_lookup 1107 %d %d\n", inode->i_ino, inode->i_count);
-					iput(inode);
-					return dentry_found;
-				}
+				inode = parent_inode;
+        goto dentry_cache_not_exists;
 			}
+
+      // if O_PARENT O_VSEARCH flag is not set
+			if (nd->intent.open.flags & O_VERSION) {
+				new_version =
+						yuiha_create_snapshot(dentry->d_parent, inode, dentry);				
+			} else {
+		    if (!yi->parent_inode && yi->i_parent_ino) {
+					yi->parent_inode = ilookup(dir->i_sb, yi->i_parent_ino);
+					if (!yi->parent_inode)
+						yi->parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
+	      }
+			}
+
+			hash = partial_name_hash(hash, inode->i_generation);
+			hash = partial_name_hash(hash, inode->i_ino);
+			dentry->d_name.hash = end_name_hash(hash);
+			dentry_found = d_lookup(parent, &dentry->d_name);
+      if (dentry_found) {
+        iput(inode);
+        return dentry_found;
+      }
 		}
 
+dentry_cache_not_exists:
 		if (unlikely(IS_ERR(inode))) {
 			if (PTR_ERR(inode) == -ESTALE) {
 				ext3_error(dir->i_sb, __func__,

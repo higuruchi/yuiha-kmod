@@ -107,9 +107,11 @@ static int yuiha_file_open(struct inode * inode, struct file *filp)
 	return ret;
 }
 
-#define DT_PARENT  24
-#define DT_SIBLING 40
-#define DT_CHILD   72
+#define DT_PARENT   020
+#define DT_SIBLING  040
+#define DT_CHILD    0100
+#define DT_VROOT    0200
+#define DT_VCURRENT 0400
 
 static int yuiha_readversion(struct file *filp,
 			 void *buf, filldir_t filldir)
@@ -118,39 +120,58 @@ static int yuiha_readversion(struct file *filp,
                *next_inode;
   struct yuiha_inode_info *yi = YUIHA_I(inode),
                           *next_yi;
-  unsigned short flag = 0;
+  unsigned short flag = DT_REG;
   unsigned int version_list_pos = (int)filp->private_data,
                ret = 0, error;
 
   // if search parent version inode
   if (!version_list_pos) {
     flag |= DT_PARENT;
-    filldir(buf, (char *)&flag,
-        sizeof(unsigned short), 0, yi->i_parent_ino, DT_PARENT);
-    ret++;
+    if (yi->i_parent_ino) {
+      next_inode = ilookup(inode->i_sb, yi->i_parent_ino);
+	    if (!next_inode)
+        next_inode = ext3_iget(inode->i_sb, yi->i_parent_ino);
+      next_yi = YUIHA_I(next_inode);
+
+      if (!next_yi->i_parent_ino)
+        flag |= DT_VROOT;
+
+      error = filldir(buf, (char *)&flag,
+          sizeof(unsigned short), 0, yi->i_parent_ino, flag);
+      if (error)
+        goto out;
+
+      ret++;
+      iput(next_inode);
+    }
     version_list_pos = inode->i_ino;
-    flag &= ~DT_PARENT;
   }
 
   // if search sibling version inode
   if (next_yi->i_parent_ino != inode->i_ino) {
-    flag |= DT_SIBLING;
     do {
+      flag = DT_SIBLING | DT_REG;
+
       next_inode = ilookup(inode->i_sb, version_list_pos);
 	    if (!next_inode)
         next_inode = ext3_iget(inode->i_sb, version_list_pos);
       next_yi = YUIHA_I(next_inode);
 
+      if (next_inode->i_ino == inode->i_ino) 
+        flag |= DT_VCURRENT;
+      if (!next_yi->i_parent_ino)
+        flag |= DT_VROOT;
+
       error = filldir(buf, (char *)&flag,
-        sizeof(unsigned short), 0, next_inode->i_ino, DT_SIBLING);
+        sizeof(unsigned short), 0, next_inode->i_ino, flag);
       if (error)
         goto out;
+
       ret++;
       version_list_pos = next_yi->i_sibling_next_ino;
       iput(next_inode);
     } while (inode->i_ino != version_list_pos);
     version_list_pos = yi->i_child_ino;
-    flag &= ~DT_SIBLING;
   }
 
   // if there is no child
@@ -158,7 +179,7 @@ static int yuiha_readversion(struct file *filp,
     goto out;
 
   // if search child version inode
-  flag |= DT_CHILD;
+  flag = DT_CHILD | DT_REG;
   do {
     next_inode = ilookup(inode->i_sb, version_list_pos);
 	  if (!next_inode)
@@ -166,14 +187,14 @@ static int yuiha_readversion(struct file *filp,
     next_yi = YUIHA_I(next_inode);
 
     error = filldir(buf, (char *)&flag,
-      sizeof(unsigned short), 0, next_inode->i_ino, DT_CHILD);
+      sizeof(unsigned short), 0, next_inode->i_ino, flag);
     if (error)
       break;
+
     ret++;
     version_list_pos = next_yi->i_sibling_next_ino;
     iput(next_inode);
   } while (yi->i_child_ino != version_list_pos);
-  flag &= ~DT_CHILD;
   version_list_pos = 0;
 
 out:
