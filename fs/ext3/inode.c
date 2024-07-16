@@ -269,6 +269,15 @@ static int verify_chain(Indirect *from, Indirect *to)
 	return (from > to);
 }
 
+static int yuiha_verify_chain(Indirect *from, Indirect *to)
+{
+  __le32 from_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*from->p)));
+
+	while (from <= to && from->key == from_p)
+		from++;
+	return (from > to);
+}
+
 /**
  *	ext3_block_to_path - parse the block number into array of offsets
  *	@inode: inode in question (we are only interested in its superblock)
@@ -407,6 +416,7 @@ no_block:
 static Indirect *yuiha_get_branch(struct inode *inode, int depth,
 				int *offsets, Indirect chain[4], int *err)
 {
+  printk("yuiha_get_branch depth=%d\n", depth);
 	struct super_block *sb = inode->i_sb;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	Indirect *p = chain;
@@ -419,25 +429,35 @@ static Indirect *yuiha_get_branch(struct inode *inode, int depth,
 	if (S_ISREG(inode->i_mode) && is_not_journal_file)
 		chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
 
-	if (!p->key)
+	if (!p->key) {
+    printk("yuiha_get_branch 424\n");
 		goto no_block;
+  }
 	while (--depth) {
+    printk("yuiha_get_branch 428 %d\n", le32_to_cpu(p->key));
 		bh = sb_bread(sb, le32_to_cpu(p->key));
-		if (!bh)
+		if (!bh) {
+      printk("yuiha_get_branch 431\n");
 			goto failure;
+    }
 		/* Reader: pointers */
-		if (!verify_chain(chain, p))
+		if (!yuiha_verify_chain(chain, p)) {
+      printk("yuiha_get_branch 436\n");
 			goto changed;
+    }
 		add_chain(++p, bh, (__le32*)bh->b_data + *++offsets);
-	  if (S_ISREG(inode->i_mode) && es->s_journal_inum != inode->i_ino) {
-			if (!test_producer_flg(le32_to_cpu(chain->key))) {
+	  if (S_ISREG(inode->i_mode) && is_not_journal_file) {
+			if (!test_producer_flg(le32_to_cpu(p->key))) {
+        printk("yuiha_get_branch 440\n");
 				set_buffer_shared(bh);
 			}
 		  p->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(p->key)));
 		}
 		/* Reader: end */
-		if (!p->key)
+		if (!p->key) {
+      printk("yuiha_get_branch 449\n");
 			goto no_block;
+    }
 	}
 	return NULL;
 
@@ -879,14 +899,19 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 
 	// All data block producer flag is allocated
 	// including indirect block.
+  printk("yuiha_cow_datablock 882\n");
 	if (!cow_depth)
 		return 0;
+  printk("yuiha_cow_datablock 885\n");
 
 	partial = &chain[cow_ind_offset];
 	cow_partial = &cow_chain[cow_ind_offset];
 	indirect_blks = (chain + depth) - partial - 1;
-	ncow = ext3_blks_to_allocate(cow_partial, indirect_blks,
-					maxblocks, blocks_to_boundary);
+	// ncow = ext3_blks_to_allocate(cow_partial, indirect_blks,
+	// 				maxblocks, blocks_to_boundary);
+  ncow = depth - cow_ind_offset;
+  printk("yuiha_cow_datablock 912 %d %d %d %d %d\n",
+      indirect_blks, ncow, depth, cow_ind_offset, maxblocks);
 
 	goal = ext3_find_goal(inode, iblock, cow_partial);
 	err = ext3_alloc_branch(handle, inode, indirect_blks,
@@ -907,21 +932,36 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 	}
 
 	// copy indirect
-	for (i = cow_ind_offset; i < depth; i++) {
-		if (!i)
-			continue;
+  *cow_chain[cow_ind_offset].p = 
+    cpu_to_le32(set_producer_flg(le32_to_cpu(*cow_chain[cow_ind_offset].p)));
+	for (i = cow_ind_offset + 1; i < depth; i++) {
+    printk("yuiha_cow_datablock 933\n");
+		// if (!i)
+		// 	continue;
+    // if (i == cow_ind_offset) {
+    //   //chain[i] = cow_chain[i];
+    //   *chain_cow[i].p =
+    //     cpu_to_le32(set_producer_flg(le32_to_cpu(*chain_cow[i].p)));
+    //   continue;
+    // }
 
 		__le32 bn = *cow_chain[i].p;
+    printk("yuiha_cow_datablock 938 %d\n", i);
+    printk("yuiha_cow_datablock 938 %p\n", cow_chain[i].bh->b_data);
+    printk("yuiha_cow_datablock 938 %p\n", chain[i].bh->b_data);
+    printk("yuiha_cow_datablock 938 %d\n", cow_chain[i].bh->b_size);
 		memcpy(cow_chain[i].bh->b_data, chain[i].bh->b_data,
 						cow_chain[i].bh->b_size);
 
+    printk("yuiha_cow_datablock 941\n");
 		__le32 *key_p = cow_chain[i].bh->b_data;
-		for(j = 0; j < EXT3_ADDR_PER_BLOCK(sb); j += 1) {
+		for(j = 0; j < EXT3_ADDR_PER_BLOCK(sb); j++) {
 			*key_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*key_p)));
 			key_p++;
 		}
 
 		*cow_chain[i].p = bn;
+    printk("yuiha_cow_datablock 949\n");
 		ext3_journal_dirty_metadata(handle, cow_chain[i].bh);
 	}
 
@@ -997,7 +1037,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		// if (chain[depth-1].bh is shared)
 		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			mutex_lock(&ei->truncate_mutex);
-			printk("ext3_get_blocks_handle 979 \n");
+			printk("ext3_get_blocks_handle 979\n");
 			// if unmapped; then read block
 			cow_block_no = le32_to_cpu(chain[depth-1].key);
 			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
@@ -1034,6 +1074,8 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		if (err != -EAGAIN)
 			goto got_it;
 	}
+
+	printk("ext3_get_blocks_handle 1041\n");
 
 	/* Next simple case - plain lookup or failed read of indirect block */
 	if (!create || err == -EIO)
@@ -1494,7 +1536,7 @@ static int ext3_ordered_write_end(struct file *file,
 		parent_mapping = parent_inode->i_mapping;
 		parent_page = find_get_page(parent_mapping, index);
 
-		printk("ext3_ordered_write_end 1492\n");
+		printk("ext3_ordered_write_end 1492 parent_page=%p\n", parent_page);
 		if (parent_page && PageShared(page)) {
 			block_write_end(NULL, parent_mapping, pos, len, copied,
 							parent_page, fsdata);

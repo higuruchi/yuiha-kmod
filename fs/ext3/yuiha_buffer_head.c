@@ -39,6 +39,10 @@ static int __yuiha_block_prepare_write(
 	struct inode *parent_inode = yi->parent_inode;
 	handle_t *handle = NULL;
 
+  struct super_block *sb = inode->i_sb;
+	struct ext3_sb_info *sbi = EXT3_SB(sb);
+
+
 	BUG_ON(!PageLocked(page));
 	BUG_ON(from > PAGE_CACHE_SIZE);
 	BUG_ON(to > PAGE_CACHE_SIZE);
@@ -65,19 +69,22 @@ static int __yuiha_block_prepare_write(
 
 			block_end = block_start + blocksize;
 			if (buffer_shared(bh)) {
-
-				parent_bh->b_state = bh->b_state;
+        printk("__yuiha_block_prepare_write %ld\n", bh->b_state);
 				parent_bh->b_blocknr = bh->b_blocknr;
 				parent_bh->b_bdev = bh->b_bdev;
 				parent_bh->b_size = bh->b_size;
 				memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
 
-				clear_buffer_shared(parent_bh);
+			  clear_buffer_new(parent_bh);
+				set_buffer_uptodate(parent_bh);
+				mark_buffer_dirty(parent_bh);
+        set_buffer_mapped(parent_bh);
+				//clear_buffer_shared(parent_bh);
 			}
 		}
     // TODO: need clearshared(page)?
-		flush_dcache_page(parent_page);
-		mark_page_accessed(parent_page);
+		// flush_dcache_page(parent_page);
+		// mark_page_accessed(parent_page);
 	}
 
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
@@ -96,6 +103,8 @@ static int __yuiha_block_prepare_write(
 
 		if (!buffer_mapped(bh) || buffer_shared(bh)) {
 			WARN_ON(bh->b_size != blocksize);
+	    printk("__yuiha_block_prepare_write 103 %lu %lu\n", inode->i_ino, 
+          percpu_counter_sum_positive(&sbi->s_freeblocks_counter));
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				break;
@@ -137,6 +146,7 @@ static int __yuiha_block_prepare_write(
 	/*
 	 * If we issued read requests - let them complete.
 	 */
+  printk("__yuiha_block_prepare_write 145\n");
 	while(wait_bh > wait) {
 		wait_on_buffer(*--wait_bh);
 		if (!buffer_uptodate(*wait_bh))
@@ -189,7 +199,7 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 
 
 	if (parent_inode && PageDirty(page) && PageShared(page)) {
-		printk("yuiha_block_write_begin196 \n");
+		printk("yuiha_block_write_begin196 index=%d \n", index);
 		parent_ownpage = 1;
 		parent_mapping = parent_inode->i_mapping;
 		parent_page = grab_cache_page_write_begin(parent_mapping, index, flags);
@@ -235,7 +245,7 @@ out:
 }
 
 inline int test_producer_flg(__u32 datablock_number) {
-	if (datablock_number & 1 << PRODUCER_BITS)
+	if (datablock_number & (1 << PRODUCER_BITS))
 		return 1;
 	return 0;
 }

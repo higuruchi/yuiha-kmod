@@ -4,7 +4,7 @@
 #define PRODUCER_BITS 31
 
 enum {
-	BH_Shared = BH_PrivateStart + 1,
+	BH_Shared = BH_PrivateStart + 10,
 };
 
 BUFFER_FNS(Shared, shared)
