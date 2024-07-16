@@ -1307,10 +1307,14 @@ int user_path_at(int dfd, const char __user *name, unsigned flags,
 	struct nameidata nd;
 	char *tmp = getname(name);
 	int err = PTR_ERR(tmp);
+
 	if (!IS_ERR(tmp)) {
 
 		BUG_ON(flags & LOOKUP_PARENT);
 
+    nd.intent.open.file = NULL;
+    nd.intent.open.flags = 0;
+    nd.intent.open.create_mode = 0;
 		err = do_path_lookup(dfd, tmp, flags, &nd);
 		putname(tmp);
 		if (!err)
