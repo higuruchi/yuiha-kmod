@@ -5,53 +5,36 @@ COUNT=${2:-100}
 DEV="/dev/vdb"
 MOUNT_POINT="/home/${USER}/research"
 EXP_MOUNT_POINT="/home/${USER}/exp_mnt"
-EXP_IMG_FILE_PATH="${EXP_MOUNT_POINT}/exp_file.img"
-LOOP_BACK_DEV="/dev/loop7"
-LOOP_BACK_MOUNT_POINT="/home/${USER}/exp_loop_back_mnt"
 
 YUIHA_KMOD_PATH="${MOUNT_POINT}/yuiha-kmod"
 YUTIL_PATH="${MOUNT_POINT}/yutil/yutil"
 DDD_PATH="${YUIHA_KMOD_PATH}/exp/ddd"
 NILFS2_KMOD_PATH="${MOUNT_POINT}/nilfs2-kmod6"
 
-exp_date=`date +"%Y-%m-%d_%H-%M"`
+sudo ntpdate ntp.nict.jp
+exp_date=`date +"%Y-%m-%d_%H-%M-%S"`
 LOGFILE_PATH="${YUIHA_KMOD_PATH}/exp/exp_data/${exp_date}_${FS}"
 LOGFILE_NAME="yuiha_exp.csv"
 IO_PATTERN_DIR_PATH="${YUIHA_KMOD_PATH}/exp"
 
 mode=(
-	# append
+  append
   seq
 )
 
 append_size=(
-	100
-	1KB
-	10KB
-	100KB
 	200KB
-	300KB
 	400KB
-	500KB
-	600KB
-	700KB
-	800KB
-	1MB
+  800KB
+  1600KB
 )
 
 seq_size=(
-	# 40k
-  # 160k
-  # 640k
-  # 2660k
-  4200k
-	# 9760k
-  # 39040k
-  # 40KB
-  # 160KB
-  # 640KB
-  # 2660KB
-  # 10640KB
+  60k
+  250k
+  1000k
+  4000k
+  # 10000k
 )
 
 vmemu_size=(
@@ -61,9 +44,10 @@ vmemu_size=(
 
 ss_span=(
 	1
-	2
-	5
-	10
+	# 2
+	# 5
+	# 10
+  # 200
 )
 
 #####################################################
@@ -96,10 +80,6 @@ function init () {
     mkdir ${EXP_MOUNT_POINT}
   fi
 
-  if [ ! -d "${LOOP_BACK_MOUNT_POINT}" ]; then
-    mkdir ${LOOP_BACK_MOUNT_POINT}
-  fi
-
   if [ ! -e "${LOGFILE_PATH}/${LOGFILE_NAME}" ]; then
   	echo "date,mode,size,count,ss_span,fs,before_img_size,\
 after_img_size,diff_img_size,mean_write_bw" >> "${LOGFILE_PATH}/${LOGFILE_NAME}"
@@ -128,42 +108,17 @@ after_img_size,diff_img_size,mean_write_bw" >> "${LOGFILE_PATH}/${LOGFILE_NAME}"
 
 function exp_init() {
 
-  if mountpoint -q ${LOOP_BACK_MOUNT_POINT}; then
-    sudo umount ${LOOP_BACK_MOUNT_POINT}
-    sudo losetup -d ${LOOP_BACK_DEV}
-    rm ${EXP_IMG_FILE_PATH}
-  fi
-
-  # if [ ${EXP} = "perf" ]; then
-  #   if [ ${FS} = "yuiha" ] || [${FS} = "ext3" ]; then
-	#   	sudo mke2fs -t ext3 -I 256 -b 4096 ${DEV} > /dev/null 2>&1
-  #   elif [ ${FS} = "nilfs2" ]; then
-	#   	sudo mke2fs -t ${FS} ${DEV} > /dev/null 2>&1
-  #   fi
-  # elif [ ${EXP} = "size" ]; then
-  #   sudo mk2fs -t ext4 ${DEV} > /dev/null 2>&1
-  #   sudo mount -t ext4 ${DEV} ${EXP_MOUNT_POINT}
-  #   truncate -s 10G 
-  # fi
-
-  if mountpoint -q ${EXP_MOUNT_POINT}; then
-    sudo mk2fs -t ext4 ${DEV} > /dev/null 2>&1
-    sudo mount -t ext4 ${DEV} ${EXP_MOUNT_POINT}
-  fi
-
-  truncate -s 100G ${EXP_IMG_FILE_PATH}
-  sudo losetup ${LOOP_BACK_DEV} ${EXP_IMG_FILE_PATH}
-
-  if [ ${FS} = "yuiha" ] || [${FS} = "ext3" ]; then
-		sudo mke2fs -t ext3 -I 256 -b 4096 ${LOOP_BACK_DEV} > /dev/null 2>&1
+  if [ ${FS} = "yuiha" ] ; then
+		sudo mke2fs -F -t ext3 -I 256 -b 4096 ${DEV} > /dev/null 2>&1
   elif [ ${FS} = "nilfs2" ]; then
-		sudo mke2fs -t nilfs2 ${LOOP_BACK_DEV} > /dev/null 2>&1
+		sudo mkfs -t nilfs2 ${DEV} > /dev/null 2>&1
+  elif [ ${FS} = "ext4" ]; then
+		sudo mke2fs -F -t ext4 -I 256 -b 4096 ${DEV} > /dev/null 2>&1
   fi
 
-	sudo mount -t ${FS} ${LOOP_BACK_DEV} ${LOOP_BACK_MOUNT_POINT}
-  sudo chown ${USER}:${USER} ${LOOP_BACK_MOUNT_POINT}
-  # before_img_size=`du ${EXP_IMG_FILE_PATH} | awk '{print $1}'`
-  before_img_size=`df | grep ${LOOP_BACK_DEV} | awk '{print $3}'`
+	sudo mount -t ${FS} ${DEV} ${EXP_MOUNT_POINT}
+  sudo chown ${USER}:${USER} ${EXP_MOUNT_POINT}
+  before_img_size=`df | grep ${DEV} | awk '{print $3}'`
 
   echo $before_img_size
 }
@@ -175,13 +130,9 @@ function exp_cleanup() {
   local before_img_size=$4
   local mean_write_bw=$5
 
-
-  after_img_size=`df | grep ${LOOP_BACK_DEV} | awk '{print $3}'`
-  sudo umount ${LOOP_BACK_MOUNT_POINT}
-  sudo losetup -d ${LOOP_BACK_DEV}
-  #after_img_size=`du ${EXP_IMG_FILE_PATH} | awk '{print $1}'`
+  after_img_size=`df --sync | grep ${DEV} | awk '{print $3}'`
+  sudo umount ${EXP_MOUNT_POINT}
   diff_img_size=$(($after_img_size - $before_img_size))
-  rm ${EXP_IMG_FILE_PATH}
 
   echo "${exp_date},\
 ${mode},\
@@ -203,7 +154,7 @@ function seq_write_exp () {
 	local SS_SPAN=$2
 
   local CON_COUNT=1
-	local TEST_NAME="seq_${SEQ_WRITE_SIZE}_${COUNT}_${SS_SPAN}_${CON_COUNT}"
+	local TEST_NAME="seq_write"
 	local FILE_NAME="${TEST_NAME}.1.0"
 	local VMSTAT_LOG_FILE="${TEST_NAME}_vmstat.log"
 
@@ -215,24 +166,18 @@ function seq_write_exp () {
 		local bw=`fio \
          --minimal \
          --rw=write \
-         --numjobs=${CON_COUNT} \
-         --bs=4k \
-         --directory=${LOOP_BACK_MOUNT_POINT} \
+         --numjobs=1 \
+         --bs=${SEQ_WRITE_SIZE} \
+         --directory=${EXP_MOUNT_POINT} \
          --size=${SEQ_WRITE_SIZE} \
          --overwrite=1 \
-         --name=${TEST_NAME} | \
+         --name="${TEST_NAME}" | \
          awk -F ";" 'NR%2==1 {printf "%d", $21 * 1024}'`
 		bw_sum=`echo "scale=6; ${bw} + ${bw_sum}" | bc`
-    # dd \
-    #   if=/dev/zero \
-    #   of="${LOOP_BACK_MOUNT_POINT}/${FILE_NAME}" \
-    #   bs=${SEQ_WRITE_SIZE} \
-    #   count=1 \
-    #   conv=notrunc
 
 		if [ $((i%SS_SPAN)) -eq 0 ]; then
 			if [ ${FS} = "yuiha" ]; then
-				${YUTIL_PATH} vc --path="${LOOP_BACK_MOUNT_POINT}/${FILE_NAME}" \
+				${YUTIL_PATH} vc --path="${EXP_MOUNT_POINT}/${FILE_NAME}" \
           > /dev/null 2>&1
 			elif [ ${FS} = "nilfs2" ]; then
 				sudo mkcp -s > /dev/null 2>&1
@@ -249,37 +194,53 @@ function seq_write_exp () {
 # Append write experiment script
 #####################################################
 function append_write_exp () {
-	APPEND_SIZE=${1:-100}
-	SS_SPAN=${2:-1}
+	local APPEND_SIZE=$1
+	local SS_SPAN=$2
+  local CON_COUNT=1
+	local TEST_NAME="append"
+	local FILE_NAME="${TEST_NAME}.1.0"
+	local VMSTAT_LOG_FILE="${TEST_NAME}_vmstat.log"
 
-	FILE_NAME="append_write_size-${APPEND_SIZE}_count-${COUNT}_ss-span-${SS_SPAN}.img"
+	vmstat 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
+	local vmstat_pid=$!
 
-	if !(type ${YUTIL_PATH} > /dev/null 2>&1); then
-	 	raise "yutil command not found"
-	 	return 1
-	fi
-
-	if [ -e "${MOUNT_POINT}/${FILE_NAME}" ]; then
-		rm "${MOUNT_POINT}/${FILE_NAME}"
-	fi
-
+	local bw_sum=0
 	for i in `seq 1 ${COUNT}`; do
-		dd \
+		# local bw=`fio \
+    #      --minimal \
+    #      --rw=write \
+    #      --numjobs=1 \
+    #      --bs=${APPEND_SIZE} \
+    #      --directory=${EXP_MOUNT_POINT} \
+    #      --size=${APPEND_SIZE} \
+    #      --overwrite=1 \
+    #      --offset=$(((i - 1) * ${APPEND_SIZE})) \
+    #      --name="${TEST_NAME}" | \
+    #      awk -F ";" 'NR%2==1 {printf "%d", $21 * 1024}'`
+		# bw_sum=`echo "scale=6; ${bw} + ${bw_sum}" | bc`
+    dd \
       if=/dev/zero \
-      of="${MOUNT_POINT}/${FILE_NAME}" \
+      of="${EXP_MOUNT_POINT}/${FILE_NAME}" \
       bs=${APPEND_SIZE} \
       count=1 \
-			obs=${APPEND_SIZE} \
+      obs=${APPEND_SIZE} \
       seek=$((i-1))
+    sync
+    sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
 
 		if [ $((i%SS_SPAN)) -eq 0 ]; then
 			if [ ${FS} = "yuiha" ]; then
-				${YUTIL_PATH} --snapshot="${MOUNT_POINT}/${FILE_NAME}"
+				${YUTIL_PATH} vc --path="${EXP_MOUNT_POINT}/${FILE_NAME}" \
+          > /dev/null 2>&1
 			elif [ ${FS} = "nilfs2" ]; then
-				sudo mkcp -s
+				sudo mkcp -s > /dev/null 2>&1
 			fi
 		fi
 	done
+
+	kill ${vmstat_pid}
+  # local mean_bw=`echo "scale=6; ${bw_sum} / ${COUNT}" | bc`
+	# echo ${mean_bw}
 }
 
 #####################################################
@@ -338,13 +299,14 @@ for m in "${mode[@]}"; do
 	if [ $m = "append" ]; then
 		for size in "${append_size[@]}"; do
 			for span in "${ss_span[@]}"; do
-        echo hoge
+        before_img_size=$(exp_init)
+        mean_write_bw=$(append_write_exp ${size} ${span})
+        exp_cleanup ${m} ${size} ${span} ${before_img_size} ${mean_write_bw}
 			done
 		done
 	elif [ $m = "seq" ]; then
 		for size in "${seq_size[@]}"; do
 			for span in "${ss_span[@]}"; do
-        echo $span
         before_img_size=$(exp_init)
         mean_write_bw=$(seq_write_exp ${size} ${span})
         exp_cleanup ${m} ${size} ${span} ${before_img_size} ${mean_write_bw}
