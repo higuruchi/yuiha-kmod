@@ -273,8 +273,11 @@ static int yuiha_verify_chain(Indirect *from, Indirect *to)
 {
   __le32 from_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*from->p)));
 
-	while (from <= to && from->key == from_p)
+	while (from <= to && from->key == from_p) {
 		from++;
+    if (from <= to)
+      from_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*from->p)));
+  }
 	return (from > to);
 }
 
