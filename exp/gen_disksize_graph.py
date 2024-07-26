@@ -13,16 +13,16 @@ width = 0.2
 yuiha_df = pd.read_csv(yuiha_exp_data_path)
 nilfs_df = pd.read_csv(nilfs_exp_data_path)
 
-fig_seq = plt.figure(figsize=(20, 4))
+fig_seq = plt.figure(figsize=(7, 10))
 
 # Sequential
 yuiha_seq_df = yuiha_df.query('mode == "seq"')
 nilfs_seq_df = nilfs_df.query('mode == "seq"')
 
-yuiha_seq_ax = fig_seq.add_subplot(1, 5, (1, 2))
-yuiha_seq_ax.set_title("(a) The differential disk size of sequential write")
+yuiha_seq_ax = fig_seq.add_subplot(6, 1, (1, 2))
+yuiha_seq_ax.set_title("(a) The differential disk size of sequential write", y=-0.27)
 yuiha_seq_ax.set_xlabel("The version creation ratio between file close and next file open")
-yuiha_seq_ax.set_ylabel("Disk usage(KB)")
+yuiha_seq_ax.set_ylabel("Differential data size(KB)")
 yuiha_seq_ax.yaxis.set_major_formatter(ptick.ScalarFormatter(useMathText=True))
 yuiha_seq_ax.ticklabel_format(style="sci",  axis="y",scilimits=(4,4))
 
@@ -42,7 +42,7 @@ for i, (s, l, c, n) in enumerate(zip(seq_file_size, seq_file_size_label, colors,
     yuiha_seq_ax.hlines(y=n, xmin=-0.1, xmax=3.7, colors=c, label="nilfs({})".format(l))
 
 yuiha_seq_ax.set_xticks(left + width + 0.1)
-ratio_labels = ["100%", "50%", "20%", "10%"]
+ratio_labels = ["100%", "50%", "25%", "0%"]
 yuiha_seq_ax.set_xticklabels(labels=ratio_labels)
 yuiha_seq_ax.set_yscale("log")
 yuiha_seq_ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
@@ -51,10 +51,10 @@ yuiha_seq_ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
 yuiha_append_df = yuiha_df.query('mode == "append"')
 nilfs_append_df = nilfs_df.query('mode == "append"')
 
-yuiha_append_ax = fig_seq.add_subplot(1, 5, (3, 4))
-yuiha_append_ax.set_title("(b) The differential disk size of append write")
+yuiha_append_ax = fig_seq.add_subplot(6, 1, (3, 4))
+yuiha_append_ax.set_title("(b) The differential disk size of append write", y=-0.27)
 yuiha_append_ax.set_xlabel("The version creation ratio between file close and next file open")
-yuiha_append_ax.set_ylabel("Disk usage(KB)")
+yuiha_append_ax.set_ylabel("Differential data size(KB)")
 yuiha_append_ax.yaxis.set_major_formatter(ptick.ScalarFormatter(useMathText=True))
 yuiha_append_ax.ticklabel_format(style="sci",  axis="y",scilimits=(4,4))
 
@@ -79,4 +79,4 @@ yuiha_append_ax.set_xticklabels(labels=ratio_labels)
 yuiha_append_ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
 
 plt.tight_layout()
-plt.savefig("hoge.png", format="png")
+plt.savefig("disksize.png", format="png")
