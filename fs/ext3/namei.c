@@ -1174,6 +1174,7 @@ static struct dentry *ext3_lookup(struct inode * dir,
 
       // if O_PARENT O_VSEARCH flag is not set
 			if (nd->intent.open.flags & O_VERSION) {
+        // mnt_want_write_file(file);
 				new_version =
 						yuiha_create_snapshot(dentry->d_parent, inode, dentry);				
 			} else {
@@ -2292,6 +2293,7 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 	struct pagevec pvec;
 	pgoff_t index, end, done_index;
 	int done = 0, nr_pages;
+  unsigned blocksize = 1 << version_i->i_blkbits;
 
 	pagevec_init(&pvec, 0);
 
@@ -2323,32 +2325,36 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 			}
 
 			done_index = page->index + 1;
-			lock_page(page);
+
+      lock_page(page);
 
 			if (unlikely(page->mapping != mapping)) {
 				unlock_page(page);
 				continue;
 			}
 
+      if (!page_has_buffers(page)) {
+        create_empty_buffers(page, blocksize, 0);
+      }
+
 			head = page_buffers(page);
 			bh = head;
-
 			do {
 				set_buffer_shared(bh);
 				bh = bh->b_this_page;
 			} while (bh != head);
 
 			SetPageShared(page);
-
 			unlock_page(page);
 		}
 		index += nr_pages;
+    pagevec_release(&pvec);
 	}
 
 	return 0;
 }
 
-struct dentry * yuiha_create_snapshot(
+struct dentry * __yuiha_create_snapshot(
 				struct dentry *parent,
 				struct inode *new_version_target_i,
 				struct dentry *lookup_dentry)
@@ -2402,6 +2408,25 @@ struct dentry * yuiha_create_snapshot(
 	return new_version;
 }
 
+struct dentry * yuiha_create_snapshot(
+				struct dentry *parent,
+				struct inode *new_version_target_i,
+				struct dentry *lookup_dentry)
+{
+  struct dentry *new_version;
+  struct address_space *mapping = new_version_target_i->i_mapping;
+  printk("yuiha_create_snapshot\n");
+
+  mutex_lock(&new_version_target_i->i_mutex);
+
+	new_version =
+    __yuiha_create_snapshot(lookup_dentry->d_parent,
+        new_version_target_i, lookup_dentry);
+
+  mutex_unlock(&new_version_target_i->i_mutex);
+
+  return new_version;
+}
 static int ext3_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 {
 	handle_t *handle;
