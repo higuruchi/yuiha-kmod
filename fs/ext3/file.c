@@ -97,23 +97,8 @@ static int yuiha_parent_file_open(struct file *filp)
 
 static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
-	printk("yuiha_file_open ino=%lu %lu\n", inode->i_ino, inode->i_count);
-
-  struct super_block *sb = inode->i_sb;
-	struct ext3_sb_info *sbi = EXT3_SB(sb);
-
-	printk("yuiha_file_open 105 %lu %lu\n", inode->i_ino, 
-      percpu_counter_sum_positive(&sbi->s_freeblocks_counter));
+	printk("yuiha_file_open ino=%lu %lu %p\n", inode->i_ino, inode->i_count, inode);
 	int ret = generic_file_open(inode, filp);
-	// if (ret)
-	// 	return ret;
-
-	// if (filp->f_flags & (O_PARENT | O_RDONLY)) {
-	// 	printk("parent version open!!\n");
-	// } else if (filp->f_flags & O_VERSION) {
-	// 	printk("versioned!!\n");
-	// 	yuiha_create_snapshot(filp);
-	// }
 
 	return ret;
 }
