@@ -1035,12 +1035,15 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		partial = ext3_get_branch(inode, depth, offsets, chain, &err);
 	}
 
+
+	printk("ext3_get_blocks_handle 986 %d\n", iblock);
 	/* Simplest case - block found, no allocation needed */
 	if (!partial) {
+	  printk("ext3_get_blocks_handle 999 \n");
 		// if (chain[depth-1].bh is shared)
 		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			mutex_lock(&ei->truncate_mutex);
-			printk("ext3_get_blocks_handle 979\n");
+			printk("ext3_get_blocks_handle 1003 \n");
 			// if unmapped; then read block
 			cow_block_no = le32_to_cpu(chain[depth-1].key);
 			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
@@ -1055,7 +1058,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		while (count < maxblocks && count <= blocks_to_boundary) {
 			ext3_fsblk_t blk;
 
-			if (!verify_chain(chain, chain + depth - 1)) {
+			if (!yuiha_verify_chain(chain, chain + depth - 1)) {
 				/*
 				 * Indirect block might be removed by
 				 * truncate while we were reading it.
@@ -1119,6 +1122,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		}
 	}
 
+	printk("ext3_get_blocks_handle 1080 \n");
 	/*
 	 * Okay, we need to do block allocation.  Lazily initialize the block
 	 * allocation info here if necessary
@@ -1193,6 +1197,7 @@ static int ext3_get_block(struct inode *inode, sector_t iblock,
 	handle_t *handle = ext3_journal_current_handle();
 	int ret = 0, started = 0;
 	unsigned max_blocks = bh_result->b_size >> inode->i_blkbits;
+  printk("ext3_get_block 1151\n");
 
 	if (create && !handle) {	/* Direct IO write... */
 		if (max_blocks > DIO_MAX_BLOCKS)
