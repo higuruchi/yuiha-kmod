@@ -1033,41 +1033,6 @@ errout:
 	return NULL;
 }
 
-void yuiha_iput(struct inode *inode)
-{
-	// struct inode *parent_inode;
-	// struct super_block *sb = inode->i_sb;
-	// struct ext3_super_block *es = EXT3_SB(sb)->s_es;
-	// struct file_system_type *fs_type = sb->s_type;
-	// int is_not_journal_file = es->s_journal_inum != inode->i_ino,
-	// 		is_yuiha = ext3_judge_yuiha(fs_type);
-
-	// printk("yuiha_iput 1045\n");
-	// parent_inode = YUIHA_I(inode)->parent_inode;
-	// if (parent_inode && is_yuiha && S_ISREG(inode->i_mode)
-	// 				&& is_not_journal_file) {
-	// 
-	// 	printk("yuiha_iput 1048 %d %d\n",
-	// 					parent_inode->i_ino, parent_inode->i_count);
-	// 	iput(parent_inode);
-	// 	//generic_drop_inode(parent_inode);
-	// 	//atomic_dec_and_lock(&parent_inode->i_count, &inode_lock);
-	// 	printk("yuiha_iput 1053 %d %d\n", parent_inode->i_ino,
-	// 					parent_inode->i_count);
-	// 	YUIHA_I(inode)->parent_inode = NULL;
-	// }
-
-	printk("yuiha_iput 1057 %d %d\n",
-						inode->i_ino, inode->i_count);
-	iput(inode);
-	printk("yuiha_iput 1051 %d %d\n",
-					inode->i_ino, inode->i_count);
-}
-
-const struct dentry_operations yuiha_dentry_operations = {
-	.d_iput = yuiha_iput,
-};
-
 static struct dentry *ext3_lookup(struct inode * dir,
     struct dentry *dentry, struct nameidata *nd)
 {
@@ -2062,7 +2027,7 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode,
 	struct file_system_type *fs_type = dir->i_sb->s_type;
 	unsigned long hash = dentry->d_name.hash;
 	struct yuiha_inode_info *yi;
-	printk("ext3_create 1790\n");
+	ext3_debug("");
 
 retry:
 	handle = ext3_journal_start(dir, EXT3_DATA_TRANS_BLOCKS(dir->i_sb) +
@@ -2091,7 +2056,6 @@ retry:
 			inode->i_fop = &yuiha_file_operations;
 		else {
 		  inode->i_fop = &ext3_file_operations;
-			//dentry->d_op = &yuiha_dentry_operations;
 		}
 		ext3_set_aops(inode);
 		err = ext3_add_nondir(handle, dentry, inode);
@@ -2394,14 +2358,14 @@ struct dentry * __yuiha_create_snapshot(
 		hash = partial_name_hash(hash, new_version_i->i_generation);
 		hash = partial_name_hash(hash, new_version_i->i_ino);
 		new_version->d_name.hash = end_name_hash(hash);
-		printk("yuiha_create_snapshot 2095 %lu\n", new_version->d_name.hash);
+		ext3_debug("new_version->d_name.hash=%lu", new_version->d_name.hash);
 
 		d_splice_alias(new_version_i, new_version);
 	  unlock_new_inode(new_version_i);
 		dput(new_version);
 	}
 
-	printk("yuiha_create_snapshot 2100 %d %d\n",
+	ext3_debug("new_version_i->i_ino=%d,new_version_i->i_count=%d",
 					new_version_i->i_ino, new_version_i->i_count);
 	ext3_journal_stop(handle);
 
@@ -2415,7 +2379,7 @@ struct dentry * yuiha_create_snapshot(
 {
   struct dentry *new_version;
   struct address_space *mapping = new_version_target_i->i_mapping;
-  printk("yuiha_create_snapshot\n");
+  ext3_debug("");
 
   mutex_lock(&new_version_target_i->i_mutex);
 

@@ -38,16 +38,12 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 {
 	struct yuiha_inode_info *yi;
 	struct dentry *dentry = filp->f_dentry,
-								//*parent_version = filp->f_dentry->d_fsdata,
 								*parent = filp->f_dentry->d_parent;
 	struct qstr dname;
 	unsigned long hash;
 
   struct super_block *sb = inode->i_sb;
 	struct ext3_sb_info *sbi = EXT3_SB(sb);
-
-	printk("ext3_release_file 44 %lu %lu\n", inode->i_ino, 
-      percpu_counter_sum_positive(&sbi->s_freeblocks_counter));
 
 	if (EXT3_I(inode)->i_state & EXT3_STATE_FLUSH_ON_CLOSE) {
 		filemap_flush(inode->i_mapping);
@@ -67,7 +63,7 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 	// only yuihafs
 	yi = YUIHA_I(inode);
 	if (yi->parent_inode) {
-		printk("ext3_release_file 63 %lu %lu\n", inode->i_ino, inode->i_count);
+		ext3_debug("%lu %lu\n", inode->i_ino, inode->i_count);
 		//iput(yi->parent_inode);
 		//yi->parent_inode = NULL;
 	}
@@ -97,8 +93,9 @@ static int yuiha_parent_file_open(struct file *filp)
 
 static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
-	printk("yuiha_file_open ino=%lu %lu %p\n", inode->i_ino, inode->i_count, inode);
 	int ret = generic_file_open(inode, filp);
+
+	ext3_debug("%lu %lu\n", inode->i_ino, inode->i_count);
 
 	return ret;
 }

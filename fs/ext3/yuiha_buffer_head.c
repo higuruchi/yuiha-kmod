@@ -69,7 +69,7 @@ static int __yuiha_block_prepare_write(
 
 			block_end = block_start + blocksize;
 			if (buffer_shared(bh)) {
-        printk("__yuiha_block_prepare_write %ld\n", bh->b_state);
+        ext3_debug("bh->b_state=%ld", bh->b_state);
 				parent_bh->b_blocknr = bh->b_blocknr;
 				parent_bh->b_bdev = bh->b_bdev;
 				parent_bh->b_size = bh->b_size;
@@ -103,8 +103,7 @@ static int __yuiha_block_prepare_write(
 
 		if (!buffer_mapped(bh) || buffer_shared(bh)) {
 			WARN_ON(bh->b_size != blocksize);
-	    printk("__yuiha_block_prepare_write 103 %lu %lu\n", inode->i_ino, 
-          percpu_counter_sum_positive(&sbi->s_freeblocks_counter));
+	    ext3_debug("inode->i_ino=%lu", inode->i_ino);
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				break;
@@ -138,7 +137,7 @@ static int __yuiha_block_prepare_write(
 		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
 		    !buffer_unwritten(bh) &&
 		     (block_start < from || block_end > to)) {
-			printk("__yuiha_block_prepare_write 170\n");
+			ext3_debug("");
 			ll_rw_block(READ, 1, &bh);
 			*wait_bh++=bh;
 		}
@@ -146,7 +145,7 @@ static int __yuiha_block_prepare_write(
 	/*
 	 * If we issued read requests - let them complete.
 	 */
-  printk("__yuiha_block_prepare_write 145\n");
+  ext3_debug("");
 	while(wait_bh > wait) {
 		wait_on_buffer(*--wait_bh);
 		if (!buffer_uptodate(*wait_bh))
@@ -199,7 +198,7 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 
 
 	if (parent_inode && PageDirty(page) && PageShared(page)) {
-		printk("yuiha_block_write_begin196 index=%d \n", index);
+		ext3_debug("index=%d", index);
 		parent_ownpage = 1;
 		parent_mapping = parent_inode->i_mapping;
 		parent_page = grab_cache_page_write_begin(parent_mapping, index, flags);
@@ -209,13 +208,13 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 		} else
 			BUG_ON(!PageLocked(page));
 	}
-	printk("yuiha_block_write_begin 205\n");
+	ext3_debug("");
 	status = __yuiha_block_prepare_write(inode, page, parent_page, 
 					start, end, get_block);
-	printk("yuiha_block_write_begin 207\n");
+	ext3_debug("");
 
 	if (unlikely(status)) {
-		printk("yuiha_block_write_begin 248\n");
+		ext3_debug("");
 		ClearPageUptodate(page);
 		if (parent_page)
 			ClearPageUptodate(parent_page);

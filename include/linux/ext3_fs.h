@@ -26,7 +26,7 @@
 /*
  * Define EXT3FS_DEBUG to produce debug messages
  */
-#undef EXT3FS_DEBUG
+#define EXT3FS_DEBUG
 
 /*
  * Define EXT3_RESERVATION to reserve data blocks for expanding files
