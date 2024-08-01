@@ -304,19 +304,6 @@ void ext3_warning (struct super_block * sb, const char * function,
 	va_end(args);
 }
 
-void yuiha_warning (struct super_block * sb, const char * function,
-		   const char * fmt, ...)
-{
-	va_list args;
-
-	va_start(args, fmt);
-	printk(KERN_WARNING "YUIHA-fs warning (device %s): %s: ",
-	       sb->s_id, function);
-	vprintk(fmt, args);
-	printk("\n");
-	va_end(args);
-}
-
 void ext3_update_dynamic_rev(struct super_block *sb)
 {
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
@@ -504,26 +491,19 @@ void yuiha_drop_inode(struct inode *inode)
 	int is_not_journal_file = es->s_journal_inum != inode->i_ino,
 			is_yuiha = ext3_judge_yuiha(fs_type);
 
-	printk("yuiha_drop_inode 493 %d %d\n",
+	ext3_debug("inode->i_ino=%d,inode->i_count=%d",
 						inode->i_ino, inode->i_count);
 	generic_drop_inode(inode);
-	printk("yuiha_drop_inode 497 %d %d\n",
-					inode->i_ino, inode->i_count);
+	ext3_debug("inode->i_ino=%d,inode->i_count=%d",
+						inode->i_ino, inode->i_count);
 	if (parent_inode && is_yuiha && S_ISREG(inode->i_mode)
 					&& is_not_journal_file) {
 	
-		printk("yuiha_drop_inode 502 %d %d\n",
+		ext3_debug("parent_inode->i_ino=%d,parent_inode->i_count=%d",
 						parent_inode->i_ino, parent_inode->i_count);
 		YUIHA_I(inode)->parent_inode = NULL;
-		//generic_drop_inode(parent_inode);
-
-		// cannot access inode_lock variable
-		//atomic_dec_and_lock(&parent_inode->i_count, &inode_lock);
-		
-		// this is generate kernel panic
-		// atomic_dec(&parent_inode->i_count); 
-		printk("yuiha_drop_inode 504 %d %d\n", parent_inode->i_ino,
-						parent_inode->i_count);
+		ext3_debug("parent_inode->i_ino=%d,parent_inode->i_count=%d\n",
+        parent_inode->i_ino, parent_inode->i_count);
 	}
 }
 
