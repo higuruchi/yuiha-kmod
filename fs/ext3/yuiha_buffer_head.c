@@ -39,7 +39,7 @@ static int __yuiha_block_prepare_write(
 	struct inode *parent_inode = yi->parent_inode;
 	handle_t *handle = NULL;
 
-  struct super_block *sb = inode->i_sb;
+	struct super_block *sb = inode->i_sb;
 	struct ext3_sb_info *sbi = EXT3_SB(sb);
 
 
@@ -75,27 +75,27 @@ static int __yuiha_block_prepare_write(
 
 			block_end = block_start + blocksize;
 			if (buffer_shared(bh)) {
-        ext3_debug("bh->b_state=%ld", bh->b_state);
+				ext3_debug("bh->b_state=%ld", bh->b_state);
 				parent_bh->b_blocknr = bh->b_blocknr;
 				parent_bh->b_bdev = bh->b_bdev;
 				parent_bh->b_size = bh->b_size;
 				memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
 
-			  clear_buffer_new(parent_bh);
+				clear_buffer_new(parent_bh);
 				set_buffer_uptodate(parent_bh);
 				mark_buffer_dirty(parent_bh);
-        set_buffer_mapped(parent_bh);
+				set_buffer_mapped(parent_bh);
 				//clear_buffer_shared(parent_bh);
 			}
 		}
-    // TODO: need clearshared(page)?
+		// TODO: need clearshared(page)?
 		// flush_dcache_page(parent_page);
 		// mark_page_accessed(parent_page);
 	}
 
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 	for(bh = head, block_start = 0; bh != head || !block_start;
-	    block++, block_start=block_end, bh = bh->b_this_page) {
+			block++, block_start=block_end, bh = bh->b_this_page) {
 		block_end = block_start + blocksize;
 		if (block_end <= from || block_start >= to) {
 			if (PageUptodate(page)) {
@@ -109,14 +109,14 @@ static int __yuiha_block_prepare_write(
 
 		if (!buffer_mapped(bh) || buffer_shared(bh)) {
 			WARN_ON(bh->b_size != blocksize);
-	    ext3_debug("inode->i_ino=%lu", inode->i_ino);
+			ext3_debug("inode->i_ino=%lu", inode->i_ino);
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				break;
 
 			if (buffer_shared(bh)) {
-        set_buffer_uptodate(bh);
-        clear_buffer_shared(bh);
+				set_buffer_uptodate(bh);
+				clear_buffer_shared(bh);
 			}
 
 			if (buffer_new(bh)) {
@@ -141,8 +141,8 @@ static int __yuiha_block_prepare_write(
 			continue; 
 		}
 		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
-		    !buffer_unwritten(bh) &&
-		     (block_start < from || block_end > to)) {
+				!buffer_unwritten(bh) &&
+				 (block_start < from || block_end > to)) {
 			ext3_debug("");
 			ll_rw_block(READ, 1, &bh);
 			*wait_bh++=bh;
@@ -151,7 +151,7 @@ static int __yuiha_block_prepare_write(
 	/*
 	 * If we issued read requests - let them complete.
 	 */
-  ext3_debug("");
+	ext3_debug("");
 	while(wait_bh > wait) {
 		wait_on_buffer(*--wait_bh);
 		if (!buffer_uptodate(*wait_bh))

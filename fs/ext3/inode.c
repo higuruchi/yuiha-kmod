@@ -77,9 +77,9 @@ int ext3_forget(handle_t *handle, int is_metadata, struct inode *inode,
 	BUFFER_TRACE(bh, "enter");
 
 	jbd_debug(4, "forgetting bh %p: is_metadata = %d, mode %o, "
-		  "data mode %lx\n",
-		  bh, is_metadata, inode->i_mode,
-		  test_opt(inode->i_sb, DATA_FLAGS));
+			"data mode %lx\n",
+			bh, is_metadata, inode->i_mode,
+			test_opt(inode->i_sb, DATA_FLAGS));
 
 	/* Never use the revoke function if we are doing full data
 	 * journaling: there is no need to, and a V1 superblock won't
@@ -87,7 +87,7 @@ int ext3_forget(handle_t *handle, int is_metadata, struct inode *inode,
 	 * data blocks. */
 
 	if (test_opt(inode->i_sb, DATA_FLAGS) == EXT3_MOUNT_JOURNAL_DATA ||
-	    (!is_metadata && !ext3_should_journal_data(inode))) {
+			(!is_metadata && !ext3_should_journal_data(inode))) {
 		if (bh) {
 			BUFFER_TRACE(bh, "call journal_forget");
 			return ext3_journal_forget(handle, bh);
@@ -102,7 +102,7 @@ int ext3_forget(handle_t *handle, int is_metadata, struct inode *inode,
 	err = ext3_journal_revoke(handle, blocknr, bh);
 	if (err)
 		ext3_abort(inode->i_sb, __func__,
-			   "error %d when attempting revoke", err);
+				 "error %d when attempting revoke", err);
 	BUFFER_TRACE(bh, "exit");
 	return err;
 }
@@ -271,13 +271,13 @@ static int verify_chain(Indirect *from, Indirect *to)
 
 static int yuiha_verify_chain(Indirect *from, Indirect *to)
 {
-  __le32 from_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*from->p)));
+	__le32 from_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*from->p)));
 
 	while (from <= to && from->key == from_p) {
 		from++;
-    if (from <= to)
-      from_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*from->p)));
-  }
+		if (from <= to)
+			from_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*from->p)));
+	}
 	return (from > to);
 }
 
@@ -425,7 +425,7 @@ static Indirect *yuiha_get_branch(struct inode *inode, int depth,
 	struct buffer_head *bh;
 	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
-  ext3_debug("depth=%d", depth);
+	ext3_debug("depth=%d", depth);
 
 	*err = 0;
 	/* i_data is not going away, no lock needed */
@@ -434,34 +434,34 @@ static Indirect *yuiha_get_branch(struct inode *inode, int depth,
 		chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
 
 	if (!p->key) {
-    ext3_debug("");
+		ext3_debug("");
 		goto no_block;
-  }
+	}
 	while (--depth) {
-    ext3_debug("p->key=%d", le32_to_cpu(p->key));
+		ext3_debug("p->key=%d", le32_to_cpu(p->key));
 		bh = sb_bread(sb, le32_to_cpu(p->key));
 		if (!bh) {
-      ext3_debug("");
+			ext3_debug("");
 			goto failure;
-    }
+		}
 		/* Reader: pointers */
 		if (!yuiha_verify_chain(chain, p)) {
-      ext3_debug("");
+			ext3_debug("");
 			goto changed;
-    }
+		}
 		add_chain(++p, bh, (__le32*)bh->b_data + *++offsets);
-	  if (S_ISREG(inode->i_mode) && is_not_journal_file) {
+		if (S_ISREG(inode->i_mode) && is_not_journal_file) {
 			if (!test_producer_flg(le32_to_cpu(p->key))) {
-        ext3_debug("");
+				ext3_debug("");
 				set_buffer_shared(bh);
 			}
-		  p->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(p->key)));
+			p->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(p->key)));
 		}
 		/* Reader: end */
 		if (!p->key) {
-      ext3_debug("");
+			ext3_debug("");
 			goto no_block;
-    }
+		}
 	}
 	return NULL;
 
@@ -534,7 +534,7 @@ static ext3_fsblk_t ext3_find_near(struct inode *inode, Indirect *ind)
  */
 
 static ext3_fsblk_t ext3_find_goal(struct inode *inode, long block,
-				   Indirect *partial)
+					 Indirect *partial)
 {
 	struct ext3_block_alloc_info *block_i;
 
@@ -724,7 +724,7 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 		branch[n].key = cpu_to_le32(new_blocks[n]);
 		*branch[n].p = branch[n].key;
 		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
-      //*branch[n].p = cpu_to_le32(set_producer_flg(new_blocks[n]));
+			//*branch[n].p = cpu_to_le32(set_producer_flg(new_blocks[n]));
 			*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
 		}
 
@@ -903,19 +903,19 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 
 	// All data block producer flag is allocated
 	// including indirect block.
-  ext3_debug("");
+	ext3_debug("");
 	if (!cow_depth)
 		return 0;
-  ext3_debug("");
+	ext3_debug("");
 
 	partial = &chain[cow_ind_offset];
 	cow_partial = &cow_chain[cow_ind_offset];
 	indirect_blks = (chain + depth) - partial - 1;
 	// ncow = ext3_blks_to_allocate(cow_partial, indirect_blks,
 	// 				maxblocks, blocks_to_boundary);
-  ncow = depth - cow_ind_offset;
-  ext3_debug("indirect_blks=%d,ncow=%d,depth=%d,cow_ind_offset=%d,maxblocks%d",
-      indirect_blks, ncow, depth, cow_ind_offset, maxblocks);
+	ncow = depth - cow_ind_offset;
+	ext3_debug("indirect_blks=%d,ncow=%d,depth=%d,cow_ind_offset=%d,maxblocks%d",
+			indirect_blks, ncow, depth, cow_ind_offset, maxblocks);
 
 	goal = ext3_find_goal(inode, iblock, cow_partial);
 	err = ext3_alloc_branch(handle, inode, indirect_blks,
@@ -936,28 +936,28 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 	}
 
 	// copy indirect
-  *cow_chain[cow_ind_offset].p = 
-    cpu_to_le32(set_producer_flg(le32_to_cpu(*cow_chain[cow_ind_offset].p)));
+	*cow_chain[cow_ind_offset].p = 
+		cpu_to_le32(set_producer_flg(le32_to_cpu(*cow_chain[cow_ind_offset].p)));
 	for (i = cow_ind_offset + 1; i < depth; i++) {
-    ext3_debug("");
+		ext3_debug("");
 		// if (!i)
 		// 	continue;
-    // if (i == cow_ind_offset) {
-    //   //chain[i] = cow_chain[i];
-    //   *chain_cow[i].p =
-    //     cpu_to_le32(set_producer_flg(le32_to_cpu(*chain_cow[i].p)));
-    //   continue;
-    // }
+		// if (i == cow_ind_offset) {
+		//   //chain[i] = cow_chain[i];
+		//   *chain_cow[i].p =
+		//     cpu_to_le32(set_producer_flg(le32_to_cpu(*chain_cow[i].p)));
+		//   continue;
+		// }
 
 		__le32 bn = *cow_chain[i].p;
-    ext3_debug("%d", i);
-    ext3_debug("%p", cow_chain[i].bh->b_data);
-    ext3_debug("%p", chain[i].bh->b_data);
-    ext3_debug("%d", cow_chain[i].bh->b_size);
+		ext3_debug("%d", i);
+		ext3_debug("%p", cow_chain[i].bh->b_data);
+		ext3_debug("%p", chain[i].bh->b_data);
+		ext3_debug("%d", cow_chain[i].bh->b_size);
 		memcpy(cow_chain[i].bh->b_data, chain[i].bh->b_data,
 						cow_chain[i].bh->b_size);
 
-    ext3_debug("");
+		ext3_debug("");
 		__le32 *key_p = cow_chain[i].bh->b_data;
 		for(j = 0; j < EXT3_ADDR_PER_BLOCK(sb); j++) {
 			*key_p = cpu_to_le32(clear_producer_flg(le32_to_cpu(*key_p)));
@@ -965,7 +965,7 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 		}
 
 		*cow_chain[i].p = bn;
-    ext3_debug("");
+		ext3_debug("");
 		ext3_journal_dirty_metadata(handle, cow_chain[i].bh);
 	}
 
@@ -1040,7 +1040,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	ext3_debug("iblock=%d", iblock);
 	/* Simplest case - block found, no allocation needed */
 	if (!partial) {
-	  ext3_debug("");
+		ext3_debug("");
 		// if (chain[depth-1].bh is shared)
 		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			mutex_lock(&ei->truncate_mutex);
@@ -1198,7 +1198,7 @@ static int ext3_get_block(struct inode *inode, sector_t iblock,
 	handle_t *handle = ext3_journal_current_handle();
 	int ret = 0, started = 0;
 	unsigned max_blocks = bh_result->b_size >> inode->i_blkbits;
-  ext3_debug("");
+	ext3_debug("");
 
 	if (create && !handle) {	/* Direct IO write... */
 		if (max_blocks > DIO_MAX_BLOCKS)
@@ -1228,7 +1228,7 @@ int ext3_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 		u64 start, u64 len)
 {
 	return generic_block_fiemap(inode, fieinfo, start, len,
-				    ext3_get_block);
+						ext3_get_block);
 }
 
 /*
@@ -1302,7 +1302,7 @@ err:
 }
 
 struct buffer_head *ext3_bread(handle_t *handle, struct inode *inode,
-			       int block, int create, int *err)
+						 int block, int create, int *err)
 {
 	struct buffer_head * bh;
 
@@ -1811,7 +1811,7 @@ static int ext3_ordered_writepage(struct page *page,
 	} else {
 		page_bufs = page_buffers(page);
 		if (!walk_page_buffers(NULL, page_bufs, 0, PAGE_CACHE_SIZE,
-				       NULL, buffer_unmapped)) {
+							 NULL, buffer_unmapped)) {
 			/* Provide NULL get_block() to catch bugs if buffers
 			 * weren't really mapped */
 			return block_write_full_page(page, NULL, wbc);
@@ -1873,7 +1873,7 @@ static int ext3_writeback_writepage(struct page *page,
 
 	if (page_has_buffers(page)) {
 		if (!walk_page_buffers(NULL, page_buffers(page), 0,
-				      PAGE_CACHE_SIZE, NULL, buffer_unmapped)) {
+							PAGE_CACHE_SIZE, NULL, buffer_unmapped)) {
 			/* Provide NULL get_block() to catch bugs if buffers
 			 * weren't really mapped */
 			return block_write_full_page(page, NULL, wbc);
@@ -2187,7 +2187,7 @@ static int ext3_block_truncate_page(handle_t *handle, struct page *page,
 	 * read-in the page - otherwise we create buffers to do the IO.
 	 */
 	if (!page_has_buffers(page) && test_opt(inode->i_sb, NOBH) &&
-	     ext3_should_writeback_data(inode) && PageUptodate(page)) {
+			 ext3_should_writeback_data(inode) && PageUptodate(page)) {
 		zero_user(page, offset, length);
 		set_page_dirty(page);
 		goto unlock;
@@ -2423,17 +2423,17 @@ static void ext3_clear_blocks(handle_t *handle, struct inode *inode,
  * block pointers.
  */
 static void ext3_free_data(handle_t *handle, struct inode *inode,
-			   struct buffer_head *this_bh,
-			   __le32 *first, __le32 *last)
+				 struct buffer_head *this_bh,
+				 __le32 *first, __le32 *last)
 {
 	ext3_fsblk_t block_to_free = 0;    /* Starting block # of a run */
 	unsigned long count = 0;	    /* Number of blocks in the run */
 	__le32 *block_to_free_p = NULL;	    /* Pointer into inode/ind
-					       corresponding to
-					       block_to_free */
+								 corresponding to
+								 block_to_free */
 	ext3_fsblk_t nr;		    /* Current block # */
 	__le32 *p;			    /* Pointer into inode/ind
-					       for current block */
+								 for current block */
 	int err;
 
 	if (this_bh) {				/* For indirect block */
@@ -2457,8 +2457,8 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 				count++;
 			} else {
 				ext3_clear_blocks(handle, inode, this_bh,
-						  block_to_free,
-						  count, block_to_free_p, p);
+							block_to_free,
+							count, block_to_free_p, p);
 				block_to_free = nr;
 				block_to_free_p = p;
 				count = 1;
@@ -2468,7 +2468,7 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 
 	if (count > 0)
 		ext3_clear_blocks(handle, inode, this_bh, block_to_free,
-				  count, block_to_free_p, p);
+					count, block_to_free_p, p);
 
 	if (this_bh) {
 		BUFFER_TRACE(this_bh, "call ext3_journal_dirty_metadata");
@@ -2483,10 +2483,10 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 			ext3_journal_dirty_metadata(handle, this_bh);
 		else
 			ext3_error(inode->i_sb, "ext3_free_data",
-				   "circular indirect block detected, "
-				   "inode=%lu, block=%llu",
-				   inode->i_ino,
-				   (unsigned long long)this_bh->b_blocknr);
+					 "circular indirect block detected, "
+					 "inode=%lu, block=%llu",
+					 inode->i_ino,
+					 (unsigned long long)this_bh->b_blocknr);
 	}
 }
 
@@ -2504,8 +2504,8 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
  *	appropriately.
  */
 static void ext3_free_branches(handle_t *handle, struct inode *inode,
-			       struct buffer_head *parent_bh,
-			       __le32 *first, __le32 *last, int depth)
+						 struct buffer_head *parent_bh,
+						 __le32 *first, __le32 *last, int depth)
 {
 	ext3_fsblk_t nr;
 	__le32 *p;
@@ -2531,17 +2531,17 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 			 */
 			if (!bh) {
 				ext3_error(inode->i_sb, "ext3_free_branches",
-					   "Read failure, inode=%lu, block="E3FSBLK,
-					   inode->i_ino, nr);
+						 "Read failure, inode=%lu, block="E3FSBLK,
+						 inode->i_ino, nr);
 				continue;
 			}
 
 			/* This zaps the entire block.  Bottom up. */
 			BUFFER_TRACE(bh, "free child branches");
 			ext3_free_branches(handle, inode, bh,
-					   (__le32*)bh->b_data,
-					   (__le32*)bh->b_data + addr_per_block,
-					   depth);
+						 (__le32*)bh->b_data,
+						 (__le32*)bh->b_data + addr_per_block,
+						 depth);
 
 			/*
 			 * We've probably journalled the indirect block several
@@ -2596,12 +2596,12 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 				 */
 				BUFFER_TRACE(parent_bh, "get_write_access");
 				if (!ext3_journal_get_write_access(handle,
-								   parent_bh)){
+									 parent_bh)){
 					*p = 0;
 					BUFFER_TRACE(parent_bh,
 					"call ext3_journal_dirty_metadata");
 					ext3_journal_dirty_metadata(handle,
-								    parent_bh);
+										parent_bh);
 				}
 			}
 		}
@@ -2739,7 +2739,7 @@ void ext3_truncate(struct inode *inode)
 
 	if (n == 1) {		/* direct blocks */
 		ext3_free_data(handle, inode, NULL, i_data+offsets[0],
-			       i_data + EXT3_NDIR_BLOCKS);
+						 i_data + EXT3_NDIR_BLOCKS);
 		goto do_indirects;
 	}
 
@@ -2749,7 +2749,7 @@ void ext3_truncate(struct inode *inode)
 		if (partial == chain) {
 			/* Shared branch grows from the inode */
 			ext3_free_branches(handle, inode, NULL,
-					   &nr, &nr+1, (chain+n-1) - partial);
+						 &nr, &nr+1, (chain+n-1) - partial);
 			*partial->p = 0;
 			/*
 			 * We mark the inode dirty prior to restart,
@@ -2766,8 +2766,8 @@ void ext3_truncate(struct inode *inode)
 	/* Clear the ends of indirect blocks on the shared branch */
 	while (partial > chain) {
 		ext3_free_branches(handle, inode, partial->bh, partial->p + 1,
-				   (__le32*)partial->bh->b_data+addr_per_block,
-				   (chain+n-1) - partial);
+					 (__le32*)partial->bh->b_data+addr_per_block,
+					 (chain+n-1) - partial);
 		BUFFER_TRACE(partial->bh, "call brelse");
 		brelse (partial->bh);
 		partial--;
@@ -3098,7 +3098,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	 */
 	if (inode->i_nlink == 0) {
 		if (inode->i_mode == 0 ||
-		    !(EXT3_SB(inode->i_sb)->s_mount_state & EXT3_ORPHAN_FS)) {
+				!(EXT3_SB(inode->i_sb)->s_mount_state & EXT3_ORPHAN_FS)) {
 			/* this inode is deleted */
 			brelse (bh);
 			ret = -ESTALE;
@@ -3159,7 +3159,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	}
 
 	if (inode->i_ino >= EXT3_FIRST_INO(inode->i_sb) + 1 &&
-	    EXT3_INODE_SIZE(inode->i_sb) > EXT3_GOOD_OLD_INODE_SIZE) {
+			EXT3_INODE_SIZE(inode->i_sb) > EXT3_GOOD_OLD_INODE_SIZE) {
 		/*
 		 * When mke2fs creates big inodes it does not zero out
 		 * the unused bytes above EXT3_GOOD_OLD_INODE_SIZE,
@@ -3167,7 +3167,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 		 */
 		ei->i_extra_isize = le16_to_cpu(raw_inode->i_extra_isize);
 		if (EXT3_GOOD_OLD_INODE_SIZE + ei->i_extra_isize >
-		    EXT3_INODE_SIZE(inode->i_sb)) {
+				EXT3_INODE_SIZE(inode->i_sb)) {
 			brelse (bh);
 			ret = -EIO;
 			goto bad_inode;
@@ -3175,7 +3175,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 		if (ei->i_extra_isize == 0) {
 			/* The extra space is currently unused. Use it. */
 			ei->i_extra_isize = sizeof(struct ext3_inode) -
-					    EXT3_GOOD_OLD_INODE_SIZE;
+							EXT3_GOOD_OLD_INODE_SIZE;
 		} else {
 			__le32 *magic = (void *)raw_inode +
 					EXT3_GOOD_OLD_INODE_SIZE +
@@ -3226,10 +3226,10 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 		inode->i_op = &ext3_special_inode_operations;
 		if (raw_inode->i_block[0])
 			init_special_inode(inode, inode->i_mode,
-			   old_decode_dev(le32_to_cpu(raw_inode->i_block[0])));
+				 old_decode_dev(le32_to_cpu(raw_inode->i_block[0])));
 		else
 			init_special_inode(inode, inode->i_mode,
-			   new_decode_dev(le32_to_cpu(raw_inode->i_block[1])));
+				 new_decode_dev(le32_to_cpu(raw_inode->i_block[1])));
 	}
 	brelse (iloc.bh);
 	ext3_set_inode_flags(inode);
@@ -3325,9 +3325,9 @@ again:
 			struct super_block *sb = inode->i_sb;
 			if (!EXT3_HAS_RO_COMPAT_FEATURE(sb,
 					EXT3_FEATURE_RO_COMPAT_LARGE_FILE) ||
-			    EXT3_SB(sb)->s_es->s_rev_level ==
+					EXT3_SB(sb)->s_es->s_rev_level ==
 					cpu_to_le32(EXT3_GOOD_OLD_REV)) {
-			       /* If this is the first large file
+						 /* If this is the first large file
 				* created, add a flag to the superblock.
 				*/
 				unlock_buffer(bh);
@@ -3502,7 +3502,7 @@ int ext3_setattr(struct dentry *dentry, struct iattr *attr)
 	}
 
 	if (S_ISREG(inode->i_mode) &&
-	    attr->ia_valid & ATTR_SIZE && attr->ia_size < inode->i_size) {
+			attr->ia_valid & ATTR_SIZE && attr->ia_size < inode->i_size) {
 		handle_t *handle;
 
 		handle = ext3_journal_start(inode, 3);
@@ -3681,7 +3681,7 @@ void ext3_dirty_inode(struct inode *inode)
 		current_handle->h_transaction != handle->h_transaction) {
 		/* This task has a transaction open against a different fs */
 		printk(KERN_EMERG "%s: transactions do not match!\n",
-		       __func__);
+					 __func__);
 	} else {
 		jbd_debug(5, "marking dirty.  outer handle=%p\n",
 				current_handle);
@@ -3712,7 +3712,7 @@ static int ext3_pin_inode(handle_t *handle, struct inode *inode)
 			err = journal_get_write_access(handle, iloc.bh);
 			if (!err)
 				err = ext3_journal_dirty_metadata(handle,
-								  iloc.bh);
+									iloc.bh);
 			brelse(iloc.bh);
 		}
 	}

@@ -182,7 +182,7 @@ static struct buffer_head * ext3_dx_find_entry(struct inode *dir,
 			struct qstr *entry, struct ext3_dir_entry_2 **res_dir,
 			int *err);
 static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
-			     struct inode *inode);
+					 struct inode *inode);
 
 /*
  * p is at least 6 bytes before the end of page
@@ -258,13 +258,13 @@ static inline unsigned dx_node_limit (struct inode *dir)
 #ifdef DX_DEBUG
 static void dx_show_index (char * label, struct dx_entry *entries)
 {
-        int i, n = dx_get_count (entries);
-        printk("%s index ", label);
-        for (i = 0; i < n; i++)
-        {
-                printk("%x->%u ", i? dx_get_hash(entries + i): 0, dx_get_block(entries + i));
-        }
-        printk("\n");
+				int i, n = dx_get_count (entries);
+				printk("%s index ", label);
+				for (i = 0; i < n; i++)
+				{
+								printk("%x->%u ", i? dx_get_hash(entries + i): 0, dx_get_block(entries + i));
+				}
+				printk("\n");
 }
 
 struct stats
@@ -293,7 +293,7 @@ static struct stats dx_show_leaf(struct dx_hash_info *hinfo, struct ext3_dir_ent
 				while (len--) printk("%c", *name++);
 				ext3fs_dirhash(de->name, de->name_len, &h);
 				printk(":%x.%u ", h.hash,
-				       ((char *) de - base));
+							 ((char *) de - base));
 			}
 			space += EXT3_DIR_REC_LEN(de->name_len);
 			names++;
@@ -305,7 +305,7 @@ static struct stats dx_show_leaf(struct dx_hash_info *hinfo, struct ext3_dir_ent
 }
 
 struct stats dx_show_entries(struct dx_hash_info *hinfo, struct inode *dir,
-			     struct dx_entry *entries, int levels)
+					 struct dx_entry *entries, int levels)
 {
 	unsigned blocksize = dir->i_sb->s_blocksize;
 	unsigned count = dx_get_count (entries), names = 0, space = 0, i;
@@ -321,8 +321,8 @@ struct stats dx_show_entries(struct dx_hash_info *hinfo, struct inode *dir,
 		printk("%s%3u:%03u hash %8x/%8x ",levels?"":"   ", i, block, hash, range);
 		if (!(bh = ext3_bread (NULL,dir, block, 0,&err))) continue;
 		stats = levels?
-		   dx_show_entries(hinfo, dir, ((struct dx_node *) bh->b_data)->entries, levels - 1):
-		   dx_show_leaf(hinfo, (struct ext3_dir_entry_2 *) bh->b_data, blocksize, 0);
+			 dx_show_entries(hinfo, dir, ((struct dx_node *) bh->b_data)->entries, levels - 1):
+			 dx_show_leaf(hinfo, (struct ext3_dir_entry_2 *) bh->b_data, blocksize, 0);
 		names += stats.names;
 		space += stats.space;
 		bcount += stats.bcount;
@@ -360,11 +360,11 @@ dx_probe(struct qstr *entry, struct inode *dir,
 		goto fail;
 	root = (struct dx_root *) bh->b_data;
 	if (root->info.hash_version != DX_HASH_TEA &&
-	    root->info.hash_version != DX_HASH_HALF_MD4 &&
-	    root->info.hash_version != DX_HASH_LEGACY) {
+			root->info.hash_version != DX_HASH_HALF_MD4 &&
+			root->info.hash_version != DX_HASH_LEGACY) {
 		ext3_warning(dir->i_sb, __func__,
-			     "Unrecognised inode hash code %d",
-			     root->info.hash_version);
+					 "Unrecognised inode hash code %d",
+					 root->info.hash_version);
 		brelse(bh);
 		*err = ERR_BAD_DX_DIR;
 		goto fail;
@@ -379,8 +379,8 @@ dx_probe(struct qstr *entry, struct inode *dir,
 
 	if (root->info.unused_flags & 1) {
 		ext3_warning(dir->i_sb, __func__,
-			     "Unimplemented inode hash flags: %#06x",
-			     root->info.unused_flags);
+					 "Unimplemented inode hash flags: %#06x",
+					 root->info.unused_flags);
 		brelse(bh);
 		*err = ERR_BAD_DX_DIR;
 		goto fail;
@@ -388,20 +388,20 @@ dx_probe(struct qstr *entry, struct inode *dir,
 
 	if ((indirect = root->info.indirect_levels) > 1) {
 		ext3_warning(dir->i_sb, __func__,
-			     "Unimplemented inode hash depth: %#06x",
-			     root->info.indirect_levels);
+					 "Unimplemented inode hash depth: %#06x",
+					 root->info.indirect_levels);
 		brelse(bh);
 		*err = ERR_BAD_DX_DIR;
 		goto fail;
 	}
 
 	entries = (struct dx_entry *) (((char *)&root->info) +
-				       root->info.info_length);
+							 root->info.info_length);
 
 	if (dx_get_limit(entries) != dx_root_limit(dir,
-						   root->info.info_length)) {
+							 root->info.info_length)) {
 		ext3_warning(dir->i_sb, __func__,
-			     "dx entry: limit != root limit");
+					 "dx entry: limit != root limit");
 		brelse(bh);
 		*err = ERR_BAD_DX_DIR;
 		goto fail;
@@ -413,7 +413,7 @@ dx_probe(struct qstr *entry, struct inode *dir,
 		count = dx_get_count(entries);
 		if (!count || count > dx_get_limit(entries)) {
 			ext3_warning(dir->i_sb, __func__,
-				     "dx entry: no count or count > limit");
+						 "dx entry: no count or count > limit");
 			brelse(bh);
 			*err = ERR_BAD_DX_DIR;
 			goto fail2;
@@ -458,7 +458,7 @@ dx_probe(struct qstr *entry, struct inode *dir,
 		at = entries = ((struct dx_node *) bh->b_data)->entries;
 		if (dx_get_limit(entries) != dx_node_limit (dir)) {
 			ext3_warning(dir->i_sb, __func__,
-				     "dx entry: limit != node limit");
+						 "dx entry: limit != node limit");
 			brelse(bh);
 			*err = ERR_BAD_DX_DIR;
 			goto fail2;
@@ -474,8 +474,8 @@ fail2:
 fail:
 	if (*err == ERR_BAD_DX_DIR)
 		ext3_warning(dir->i_sb, __func__,
-			     "Corrupt dir inode %ld, running e2fsck is "
-			     "recommended.", dir->i_ino);
+					 "Corrupt dir inode %ld, running e2fsck is "
+					 "recommended.", dir->i_ino);
 	return NULL;
 }
 
@@ -553,7 +553,7 @@ static int ext3_htree_next_block(struct inode *dir, __u32 hash,
 	 */
 	while (num_frames--) {
 		if (!(bh = ext3_bread(NULL, dir, dx_get_block(p->at),
-				      0, &err)))
+							0, &err)))
 			return err; /* Failure */
 		p++;
 		brelse (p->bh);
@@ -570,9 +570,9 @@ static int ext3_htree_next_block(struct inode *dir, __u32 hash,
  * into the tree.  If there is an error it is returned in err.
  */
 static int htree_dirblock_to_tree(struct file *dir_file,
-				  struct inode *dir, int block,
-				  struct dx_hash_info *hinfo,
-				  __u32 start_hash, __u32 start_minor_hash)
+					struct inode *dir, int block,
+					struct dx_hash_info *hinfo,
+					__u32 start_hash, __u32 start_minor_hash)
 {
 	struct buffer_head *bh;
 	struct ext3_dir_entry_2 *de, *top;
@@ -584,8 +584,8 @@ static int htree_dirblock_to_tree(struct file *dir_file,
 
 	de = (struct ext3_dir_entry_2 *) bh->b_data;
 	top = (struct ext3_dir_entry_2 *) ((char *) de +
-					   dir->i_sb->s_blocksize -
-					   EXT3_DIR_REC_LEN(0));
+						 dir->i_sb->s_blocksize -
+						 EXT3_DIR_REC_LEN(0));
 	for (; de < top; de = ext3_next_entry(de)) {
 		if (!ext3_check_dir_entry("htree_dirblock_to_tree", dir, de, bh,
 					(block<<EXT3_BLOCK_SIZE_BITS(dir->i_sb))
@@ -598,13 +598,13 @@ static int htree_dirblock_to_tree(struct file *dir_file,
 		}
 		ext3fs_dirhash(de->name, de->name_len, hinfo);
 		if ((hinfo->hash < start_hash) ||
-		    ((hinfo->hash == start_hash) &&
-		     (hinfo->minor_hash < start_minor_hash)))
+				((hinfo->hash == start_hash) &&
+				 (hinfo->minor_hash < start_minor_hash)))
 			continue;
 		if (de->inode == 0)
 			continue;
 		if ((err = ext3_htree_store_dirent(dir_file,
-				   hinfo->hash, hinfo->minor_hash, de)) != 0) {
+					 hinfo->hash, hinfo->minor_hash, de)) != 0) {
 			brelse(bh);
 			return err;
 		}
@@ -636,7 +636,7 @@ int ext3_htree_fill_tree(struct file *dir_file, __u32 start_hash,
 	__u32 hashval;
 
 	dxtrace(printk("In htree_fill_tree, start hash: %x:%x\n", start_hash,
-		       start_minor_hash));
+					 start_minor_hash));
 	dir = dir_file->f_path.dentry->d_inode;
 	if (!(EXT3_I(dir)->i_flags & EXT3_INDEX_FL)) {
 		hinfo.hash_version = EXT3_SB(dir->i_sb)->s_def_hash_version;
@@ -645,7 +645,7 @@ int ext3_htree_fill_tree(struct file *dir_file, __u32 start_hash,
 				EXT3_SB(dir->i_sb)->s_hash_unsigned;
 		hinfo.seed = EXT3_SB(dir->i_sb)->s_hash_seed;
 		count = htree_dirblock_to_tree(dir_file, dir, 0, &hinfo,
-					       start_hash, start_minor_hash);
+								 start_hash, start_minor_hash);
 		*next_hash = ~0;
 		return count;
 	}
@@ -673,7 +673,7 @@ int ext3_htree_fill_tree(struct file *dir_file, __u32 start_hash,
 	while (1) {
 		block = dx_get_block(frame->at);
 		ret = htree_dirblock_to_tree(dir_file, dir, block, &hinfo,
-					     start_hash, start_minor_hash);
+							 start_hash, start_minor_hash);
 		if (ret < 0) {
 			err = ret;
 			goto errout;
@@ -681,7 +681,7 @@ int ext3_htree_fill_tree(struct file *dir_file, __u32 start_hash,
 		count += ret;
 		hashval = ~0;
 		ret = ext3_htree_next_block(dir, HASH_NB_ALWAYS,
-					    frame, frames, &hashval);
+							frame, frames, &hashval);
 		*next_hash = hashval;
 		if (ret < 0) {
 			err = ret;
@@ -693,12 +693,12 @@ int ext3_htree_fill_tree(struct file *dir_file, __u32 start_hash,
 		 * next hash value is not a continuation
 		 */
 		if ((ret == 0) ||
-		    (count && ((hashval & 1) == 0)))
+				(count && ((hashval & 1) == 0)))
 			break;
 	}
 	dx_release(frames);
 	dxtrace(printk("Fill tree: returned %d entries, next hash: %x\n",
-		       count, *next_hash));
+					 count, *next_hash));
 	return count;
 errout:
 	dx_release(frames);
@@ -741,28 +741,28 @@ static int dx_make_map(struct ext3_dir_entry_2 *de, unsigned blocksize,
 /* Sort map by hash value */
 static void dx_sort_map (struct dx_map_entry *map, unsigned count)
 {
-        struct dx_map_entry *p, *q, *top = map + count - 1;
-        int more;
-        /* Combsort until bubble sort doesn't suck */
-        while (count > 2)
+				struct dx_map_entry *p, *q, *top = map + count - 1;
+				int more;
+				/* Combsort until bubble sort doesn't suck */
+				while (count > 2)
 	{
-                count = count*10/13;
-                if (count - 9 < 2) /* 9, 10 -> 11 */
-                        count = 11;
-                for (p = top, q = p - count; q >= map; p--, q--)
-                        if (p->hash < q->hash)
-                                swap(*p, *q);
-        }
-        /* Garden variety bubble sort */
-        do {
-                more = 0;
-                q = top;
-                while (q-- > map)
+								count = count*10/13;
+								if (count - 9 < 2) /* 9, 10 -> 11 */
+												count = 11;
+								for (p = top, q = p - count; q >= map; p--, q--)
+												if (p->hash < q->hash)
+																swap(*p, *q);
+				}
+				/* Garden variety bubble sort */
+				do {
+								more = 0;
+								q = top;
+								while (q-- > map)
 		{
-                        if (q[1].hash >= q[0].hash)
+												if (q[1].hash >= q[0].hash)
 				continue;
-                        swap(*(q+1), *q);
-                        more = 1;
+												swap(*(q+1), *q);
+												more = 1;
 		}
 	} while(more);
 }
@@ -784,7 +784,7 @@ static void dx_insert_block(struct dx_frame *frame, u32 hash, u32 block)
 static void ext3_update_dx_flag(struct inode *inode)
 {
 	if (!EXT3_HAS_COMPAT_FEATURE(inode->i_sb,
-				     EXT3_FEATURE_COMPAT_DIR_INDEX))
+						 EXT3_FEATURE_COMPAT_DIR_INDEX))
 		EXT3_I(inode)->i_flags &= ~EXT3_INDEX_FL;
 }
 
@@ -795,7 +795,7 @@ static void ext3_update_dx_flag(struct inode *inode)
  * `de != NULL' is guaranteed by caller.
  */
 static inline int ext3_match (int len, const char * const name,
-			      struct ext3_dir_entry_2 * de)
+						struct ext3_dir_entry_2 * de)
 {
 	if (len != de->name_len)
 		return 0;
@@ -808,10 +808,10 @@ static inline int ext3_match (int len, const char * const name,
  * Returns 0 if not found, -1 on failure, and 1 on success
  */
 static inline int search_dirblock(struct buffer_head * bh,
-				  struct inode *dir,
-				  struct qstr *child,
-				  unsigned long offset,
-				  struct ext3_dir_entry_2 ** res_dir)
+					struct inode *dir,
+					struct qstr *child,
+					unsigned long offset,
+					struct ext3_dir_entry_2 ** res_dir)
 {
 	struct ext3_dir_entry_2 * de;
 	char * dlimit;
@@ -826,10 +826,10 @@ static inline int search_dirblock(struct buffer_head * bh,
 		/* do minimal checking `by hand' */
 
 		if ((char *) de + namelen <= dlimit &&
-		    ext3_match (namelen, name, de)) {
+				ext3_match (namelen, name, de)) {
 			/* found a match - just to be sure, do a full check */
 			if (!ext3_check_dir_entry("ext3_find_entry",
-						  dir, de, bh, offset))
+							dir, de, bh, offset))
 				return -1;
 			*res_dir = de;
 			return 1;
@@ -865,9 +865,9 @@ static struct buffer_head *ext3_find_entry(struct inode *dir,
 	struct buffer_head * bh, *ret = NULL;
 	unsigned long start, block, b;
 	int ra_max = 0;		/* Number of bh's in the readahead
-				   buffer, bh_use[] */
+					 buffer, bh_use[] */
 	int ra_ptr = 0;		/* Current index into readahead
-				   buffer */
+					 buffer */
 	int num = 0;
 	int nblocks, i, err;
 	int namelen;
@@ -925,12 +925,12 @@ restart:
 		if (!buffer_uptodate(bh)) {
 			/* read error, skip block & hope for the best */
 			ext3_error(sb, __func__, "reading directory #%lu "
-				   "offset %lu", dir->i_ino, block);
+					 "offset %lu", dir->i_ino, block);
 			brelse(bh);
 			goto next;
 		}
 		i = search_dirblock(bh, dir, entry,
-			    block << EXT3_BLOCK_SIZE_BITS(sb), res_dir);
+					block << EXT3_BLOCK_SIZE_BITS(sb), res_dir);
 		if (i == 1) {
 			EXT3_I(dir)->i_dir_start_lookup = block;
 			ret = bh;
@@ -996,10 +996,10 @@ static struct buffer_head * ext3_dx_find_entry(struct inode *dir,
 			goto errout;
 		de = (struct ext3_dir_entry_2 *) bh->b_data;
 		top = (struct ext3_dir_entry_2 *) ((char *) de + sb->s_blocksize -
-				       EXT3_DIR_REC_LEN(0));
+							 EXT3_DIR_REC_LEN(0));
 		for (; de < top; de = ext3_next_entry(de)) {
 			int off = (block << EXT3_BLOCK_SIZE_BITS(sb))
-				  + ((char *) de - bh->b_data);
+					+ ((char *) de - bh->b_data);
 
 			if (!ext3_check_dir_entry(__func__, dir, de, bh, off)) {
 				brelse(bh);
@@ -1016,11 +1016,11 @@ static struct buffer_head * ext3_dx_find_entry(struct inode *dir,
 		brelse (bh);
 		/* Check to see if we should continue to search */
 		retval = ext3_htree_next_block(dir, hash, frame,
-					       frames, NULL);
+								 frames, NULL);
 		if (retval < 0) {
 			ext3_warning(sb, __func__,
-			     "error reading index page in directory #%lu",
-			     dir->i_ino);
+					 "error reading index page in directory #%lu",
+					 dir->i_ino);
 			*err = retval;
 			goto errout;
 		}
@@ -1034,20 +1034,20 @@ errout:
 }
 
 static struct dentry *ext3_lookup(struct inode * dir,
-    struct dentry *dentry, struct nameidata *nd)
+		struct dentry *dentry, struct nameidata *nd)
 {
 	struct inode *inode, *parent_inode, *search_inode;
 	struct ext3_dir_entry_2 * de;
 	struct buffer_head * bh;
 	struct yuiha_inode_info *yi, *search_yi;
 	unsigned long parent_hash = dentry->d_name.hash,
-                search_hash = dentry->d_name.hash,
-                hash = dentry->d_name.hash;
+								search_hash = dentry->d_name.hash,
+								hash = dentry->d_name.hash;
 	struct dentry *parent = nd->path.dentry,
-                *dentry_found = NULL,
-                *new_version;
+								*dentry_found = NULL,
+								*new_version;
 	int acc_mode = (nd->intent.open.flags - 1) & O_ACCMODE,
-      open_flag = nd->intent.open.flags;
+			open_flag = nd->intent.open.flags;
 
 	if (dentry->d_name.len > EXT3_NAME_LEN)
 		return ERR_PTR(-ENAMETOOLONG);
@@ -1059,7 +1059,7 @@ static struct dentry *ext3_lookup(struct inode * dir,
 		brelse (bh);
 		if (!ext3_valid_inum(dir->i_sb, ino)) {
 			ext3_error(dir->i_sb, "ext3_lookup",
-				   "bad inode number: %lu", ino);
+					 "bad inode number: %lu", ino);
 			return ERR_PTR(-EIO);
 		}
 
@@ -1070,39 +1070,39 @@ static struct dentry *ext3_lookup(struct inode * dir,
 		if (S_ISREG(inode->i_mode)) {
 			yi = YUIHA_I(inode);
 
-      if ((open_flag & O_VSEARCH) && (open_flag & O_CREAT)) {
-        int search_ino = nd->intent.open.create_mode;
+			if ((open_flag & O_VSEARCH) && (open_flag & O_CREAT)) {
+				int search_ino = nd->intent.open.create_mode;
 
 				search_inode = ilookup(inode->i_sb, search_ino);
 				if (!search_inode)
 					search_inode = ext3_iget(dir->i_sb, search_ino);
-        search_yi = YUIHA_I(search_inode);
-        // TODO: if specified not exist inode number, return error
-        
-        iput(inode);
-        if (!(nd->intent.open.flags & O_PARENT)) {
-				  search_hash = partial_name_hash(search_hash, search_inode->i_generation);
-				  search_hash = partial_name_hash(search_hash, search_inode->i_ino);
-				  dentry->d_name.hash = end_name_hash(search_hash);
-				  dentry_found = d_lookup(parent, &dentry->d_name);
+				search_yi = YUIHA_I(search_inode);
+				// TODO: if specified not exist inode number, return error
+				
+				iput(inode);
+				if (!(nd->intent.open.flags & O_PARENT)) {
+					search_hash = partial_name_hash(search_hash, search_inode->i_generation);
+					search_hash = partial_name_hash(search_hash, search_inode->i_ino);
+					dentry->d_name.hash = end_name_hash(search_hash);
+					dentry_found = d_lookup(parent, &dentry->d_name);
 
-          // if open file with writable mode, create a new snapshot
-          if (acc_mode)
-            new_version =
-              yuiha_create_snapshot(dentry->d_parent, search_inode, dentry);
+					// if open file with writable mode, create a new snapshot
+					if (acc_mode)
+						new_version =
+							yuiha_create_snapshot(dentry->d_parent, search_inode, dentry);
 
-          if (dentry_found) {
-            iput(search_inode);
-            return dentry_found;
-          }
+					if (dentry_found) {
+						iput(search_inode);
+						return dentry_found;
+					}
 
-          inode = search_inode;
-          goto dentry_cache_not_exists;
-        } else {
-          inode = search_inode;
-          yi = YUIHA_I(search_inode);
-        }
-      }
+					inode = search_inode;
+					goto dentry_cache_not_exists;
+				} else {
+					inode = search_inode;
+					yi = YUIHA_I(search_inode);
+				}
+			}
 
 			if (open_flag & O_PARENT) {
 				// TODO: if parent version is not exist, return error
@@ -1116,17 +1116,17 @@ static struct dentry *ext3_lookup(struct inode * dir,
 				dentry->d_name.hash = end_name_hash(parent_hash);
 				dentry_found = d_lookup(parent, &dentry->d_name);
 
-        if (dentry_found)
-          parent_inode = dentry_found->d_inode;
-        else {
-				  parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
-				  if (!parent_inode)
-					  parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
-        }
+				if (dentry_found)
+					parent_inode = dentry_found->d_inode;
+				else {
+					parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
+					if (!parent_inode)
+						parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
+				}
 				iput(inode);
 
-        // if open file with writable mode, create a new snapshot
-        if (acc_mode)
+				// if open file with writable mode, create a new snapshot
+				if (acc_mode)
 					new_version =
 							yuiha_create_snapshot(dentry->d_parent, parent_inode, dentry);
 
@@ -1137,9 +1137,9 @@ static struct dentry *ext3_lookup(struct inode * dir,
 				goto dentry_cache_not_exists;
 			}
 
-      // if O_PARENT O_VSEARCH flag is not set
+			// if O_PARENT O_VSEARCH flag is not set
 			if (nd->intent.open.flags & O_VERSION) {
-        // mnt_want_write_file(file);
+				// mnt_want_write_file(file);
 				new_version =
 						yuiha_create_snapshot(dentry->d_parent, inode, dentry);				
 			}
@@ -1155,10 +1155,10 @@ static struct dentry *ext3_lookup(struct inode * dir,
 			hash = partial_name_hash(hash, inode->i_ino);
 			dentry->d_name.hash = end_name_hash(hash);
 			dentry_found = d_lookup(parent, &dentry->d_name);
-      if (dentry_found) {
-        iput(inode);
-        return dentry_found;
-      }
+			if (dentry_found) {
+				iput(inode);
+				return dentry_found;
+			}
 		}
 
 dentry_cache_not_exists:
@@ -1193,7 +1193,7 @@ struct dentry *ext3_get_parent(struct dentry *child)
 
 	if (!ext3_valid_inum(child->d_inode->i_sb, ino)) {
 		ext3_error(child->d_inode->i_sb, "ext3_get_parent",
-			   "bad inode number: %lu", ino);
+				 "bad inode number: %lu", ino);
 		return ERR_PTR(-EIO);
 	}
 
@@ -1308,7 +1308,7 @@ static struct ext3_dir_entry_2 *do_split(handle_t *handle, struct inode *dir,
 	/* create map in the end of data2 block */
 	map = (struct dx_map_entry *) (data2 + blocksize);
 	count = dx_make_map ((struct ext3_dir_entry_2 *) data1,
-			     blocksize, hinfo, map);
+					 blocksize, hinfo, map);
 	map -= count;
 	dx_sort_map (map, count);
 	/* Split the existing block in the middle, size-wise */
@@ -1376,8 +1376,8 @@ errout:
  * all other cases bh is released.
  */
 static int add_dirent_to_buf(handle_t *handle, struct dentry *dentry,
-			     struct inode *inode, struct ext3_dir_entry_2 *de,
-			     struct buffer_head * bh)
+					 struct inode *inode, struct ext3_dir_entry_2 *de,
+					 struct buffer_head * bh)
 {
 	struct inode	*dir = dentry->d_parent->d_inode;
 	const char	*name = dentry->d_name.name;
@@ -1393,7 +1393,7 @@ static int add_dirent_to_buf(handle_t *handle, struct dentry *dentry,
 		top = bh->b_data + dir->i_sb->s_blocksize - reclen;
 		while ((char *) de <= top) {
 			if (!ext3_check_dir_entry("ext3_add_entry", dir, de,
-						  bh, offset)) {
+							bh, offset)) {
 				brelse (bh);
 				return -EIO;
 			}
@@ -1464,7 +1464,7 @@ static int add_dirent_to_buf(handle_t *handle, struct dentry *dentry,
  * directory, and adds the dentry to the indexed directory.
  */
 static int make_indexed_dir(handle_t *handle, struct dentry *dentry,
-			    struct inode *inode, struct buffer_head *bh)
+					struct inode *inode, struct buffer_head *bh)
 {
 	struct inode	*dir = dentry->d_parent->d_inode;
 	const char	*name = dentry->d_name.name;
@@ -1498,8 +1498,8 @@ static int make_indexed_dir(handle_t *handle, struct dentry *dentry,
 			ext3_rec_len_from_disk(fde->rec_len));
 	if ((char *) de >= (((char *) root) + blocksize)) {
 		ext3_error(dir->i_sb, __func__,
-			   "invalid rec_len for '..' in inode %lu",
-			   dir->i_ino);
+				 "invalid rec_len for '..' in inode %lu",
+				 dir->i_ino);
 		brelse(bh);
 		return -EIO;
 	}
@@ -1594,7 +1594,7 @@ static int ext3_add_entry (handle_t *handle, struct dentry *dentry,
 			return retval;
 
 		if (blocks == 1 && !dx_fallback &&
-		    EXT3_HAS_COMPAT_FEATURE(sb, EXT3_FEATURE_COMPAT_DIR_INDEX))
+				EXT3_HAS_COMPAT_FEATURE(sb, EXT3_FEATURE_COMPAT_DIR_INDEX))
 			return make_indexed_dir(handle, dentry, inode, bh);
 		brelse(bh);
 	}
@@ -1611,7 +1611,7 @@ static int ext3_add_entry (handle_t *handle, struct dentry *dentry,
  * Returns 0 for success, or a negative error value
  */
 static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
-			     struct inode *inode)
+					 struct inode *inode)
 {
 	struct dx_frame frames[2], *frame;
 	struct dx_entry *entries, *at;
@@ -1644,7 +1644,7 @@ static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
 
 	/* Block full, should compress but for now just split */
 	dxtrace(printk("using %u of %u node entries\n",
-		       dx_get_count(entries), dx_get_limit(entries)));
+					 dx_get_count(entries), dx_get_limit(entries)));
 	/* Need to split index? */
 	if (dx_get_count(entries) == dx_get_limit(entries)) {
 		u32 newblock;
@@ -1655,9 +1655,9 @@ static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
 		struct buffer_head *bh2;
 
 		if (levels && (dx_get_count(frames->entries) ==
-			       dx_get_limit(frames->entries))) {
+						 dx_get_limit(frames->entries))) {
 			ext3_warning(sb, __func__,
-				     "Directory index full!");
+						 "Directory index full!");
 			err = -ENOSPC;
 			goto cleanup;
 		}
@@ -1679,7 +1679,7 @@ static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
 
 			BUFFER_TRACE(frame->bh, "get_write_access"); /* index root */
 			err = ext3_journal_get_write_access(handle,
-							     frames[0].bh);
+									 frames[0].bh);
 			if (err)
 				goto journal_error;
 
@@ -1698,7 +1698,7 @@ static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
 			dx_insert_block (frames + 0, hash2, newblock);
 			dxtrace(dx_show_index ("node", frames[1].entries));
 			dxtrace(dx_show_index ("node",
-			       ((struct dx_node *) bh2->b_data)->entries));
+						 ((struct dx_node *) bh2->b_data)->entries));
 			err = ext3_journal_dirty_metadata(handle, bh2);
 			if (err)
 				goto journal_error;
@@ -1706,7 +1706,7 @@ static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
 		} else {
 			dxtrace(printk("Creating second level index...\n"));
 			memcpy((char *) entries2, (char *) entries,
-			       icount * sizeof(struct dx_entry));
+						 icount * sizeof(struct dx_entry));
 			dx_set_limit(entries2, dx_node_limit(dir));
 
 			/* Set up root */
@@ -1720,7 +1720,7 @@ static int ext3_dx_add_entry(handle_t *handle, struct dentry *dentry,
 			frame->entries = entries = entries2;
 			frame->bh = bh2;
 			err = ext3_journal_get_write_access(handle,
-							     frame->bh);
+									 frame->bh);
 			if (err)
 				goto journal_error;
 		}
@@ -1747,9 +1747,9 @@ cleanup:
  * previous entry
  */
 static int ext3_delete_entry (handle_t *handle,
-			      struct inode * dir,
-			      struct ext3_dir_entry_2 * de_del,
-			      struct buffer_head * bh)
+						struct inode * dir,
+						struct ext3_dir_entry_2 * de_del,
+						struct buffer_head * bh)
 {
 	struct ext3_dir_entry_2 * de, * pde;
 	int i;
@@ -1799,73 +1799,73 @@ static int ext3_add_nondir(handle_t *handle,
 
 static void
 yuiha_link_parent(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *from,
 	struct yuiha_inode_info *to)
 {
 	struct inode *to_inode = &to->i_ext3.vfs_inode,
-               *from_inode = &from->i_ext3.vfs_inode;
+							 *from_inode = &from->i_ext3.vfs_inode;
 
 	from->i_parent_ino = to_inode->i_ino;
 	from->i_parent_generation = to_inode->i_generation;
 
-  ext3_mark_inode_dirty(handle, from_inode);
+	ext3_mark_inode_dirty(handle, from_inode);
 }
 
 static void
 yuiha_set_parent(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *dest,
 	struct yuiha_inode_info *src)
 {
-  struct inode *dest_inode = &dest->i_ext3.vfs_inode;
+	struct inode *dest_inode = &dest->i_ext3.vfs_inode;
 
 	dest->i_parent_ino = src->i_parent_ino;
 	dest->i_parent_generation = src->i_parent_generation;
 
-  ext3_mark_inode_dirty(handle, dest_inode);
+	ext3_mark_inode_dirty(handle, dest_inode);
 }
 
 static void
 yuiha_link_child(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *from,
 	struct yuiha_inode_info *to)
 {
 	struct inode *to_inode = &to->i_ext3.vfs_inode,
-               *from_inode = &from->i_ext3.vfs_inode;
+							 *from_inode = &from->i_ext3.vfs_inode;
 
 	from->i_child_ino = to_inode->i_ino;
 	from->i_child_generation = to_inode->i_generation;
 
-  ext3_mark_inode_dirty(handle, from_inode);
+	ext3_mark_inode_dirty(handle, from_inode);
 }
 
 static void
 yuiha_set_child(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *dest,
 	struct yuiha_inode_info *src)
 {
-  struct inode *dest_inode = &dest->i_ext3.vfs_inode;
+	struct inode *dest_inode = &dest->i_ext3.vfs_inode;
 
 	dest->i_child_ino = src->i_child_ino;
 	dest->i_child_generation = src->i_child_generation;
 
-  ext3_mark_inode_dirty(handle, dest_inode);
+	ext3_mark_inode_dirty(handle, dest_inode);
 }
 
 static void
 yuiha_insert_to_sibling(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *head,
 	struct yuiha_inode_info *new)
 {
 	struct inode *head_inode = &head->i_ext3.vfs_inode,
-               *new_inode = &new->i_ext3.vfs_inode,
-               *next_inode;
+							 *new_inode = &new->i_ext3.vfs_inode,
+							 *next_inode;
 	struct yuiha_inode_info *next;
-  struct super_block *sb = head_inode->i_sb;
+	struct super_block *sb = head_inode->i_sb;
 
 	next_inode = ilookup(sb, head->i_sibling_next_ino);
 	if (!next_inode)
@@ -1884,11 +1884,11 @@ yuiha_insert_to_sibling(
 	next->i_sibling_prev_ino = new_inode->i_ino;
 	next->i_sibling_prev_generation = new_inode->i_generation;
 
-  ext3_mark_inode_dirty(handle, head_inode);
-  ext3_mark_inode_dirty(handle, new_inode);
-  ext3_mark_inode_dirty(handle, next_inode);
+	ext3_mark_inode_dirty(handle, head_inode);
+	ext3_mark_inode_dirty(handle, new_inode);
+	ext3_mark_inode_dirty(handle, next_inode);
 
-  iput(next_inode);
+	iput(next_inode);
 }
 
 static int
@@ -1900,7 +1900,7 @@ yuiha_test_sibling_link_self(
 
 static void
 yuiha_sibling_link_self(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *yi)
 {
 	struct inode *inode = &yi->i_ext3.vfs_inode;
@@ -1911,21 +1911,21 @@ yuiha_sibling_link_self(
 	yi->i_sibling_next_ino = inode->i_ino;
 	yi->i_sibling_next_generation = inode->i_generation;
 
-  ext3_mark_inode_dirty(handle, inode);
+	ext3_mark_inode_dirty(handle, inode);
 }
 
 static void
 yuiha_remove_from_sibling(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *removal)
 {
 	struct inode *prev_inode, *next_inode,
-               *removal_inode = &removal->i_ext3.vfs_inode;
-  struct yuiha_inode_info *prev, *next;
-  struct super_block *sb = removal_inode->i_sb;
+							 *removal_inode = &removal->i_ext3.vfs_inode;
+	struct yuiha_inode_info *prev, *next;
+	struct super_block *sb = removal_inode->i_sb;
 
-  if (yuiha_test_sibling_link_self(removal))
-    return;
+	if (yuiha_test_sibling_link_self(removal))
+		return;
 
 	prev_inode = ilookup(sb, removal->i_sibling_prev_ino);
 	if (!prev_inode)
@@ -1943,40 +1943,40 @@ yuiha_remove_from_sibling(
 	next->i_sibling_prev_ino = removal->i_sibling_prev_ino;
 	next->i_sibling_prev_generation = removal->i_sibling_prev_generation;
 	
-  yuiha_sibling_link_self(handle, removal);
+	yuiha_sibling_link_self(handle, removal);
 
-  ext3_mark_inode_dirty(handle, prev_inode);
-  ext3_mark_inode_dirty(handle, removal_inode);
-  ext3_mark_inode_dirty(handle, next_inode);
+	ext3_mark_inode_dirty(handle, prev_inode);
+	ext3_mark_inode_dirty(handle, removal_inode);
+	ext3_mark_inode_dirty(handle, next_inode);
 
-  iput(prev_inode);
-  iput(next_inode);
+	iput(prev_inode);
+	iput(next_inode);
 }
 
 static void
 yuiha_child_set_zero(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *yi)
 {
-  struct inode *inode = &yi->i_ext3.vfs_inode;
+	struct inode *inode = &yi->i_ext3.vfs_inode;
 
 	yi->i_child_ino = 0;
 	yi->i_child_generation = 0;
 
-  ext3_mark_inode_dirty(handle, inode);
+	ext3_mark_inode_dirty(handle, inode);
 }
 
 static void
 yuiha_parent_set_zero(
-  handle_t *handle,
+	handle_t *handle,
 	struct yuiha_inode_info *yi)
 {
-  struct inode *inode = &yi->i_ext3.vfs_inode;
+	struct inode *inode = &yi->i_ext3.vfs_inode;
 
 	yi->i_parent_ino = 0;
 	yi->i_parent_generation = 0;
 
-  ext3_mark_inode_dirty(handle, inode);
+	ext3_mark_inode_dirty(handle, inode);
 }
 
 static void
@@ -1987,27 +1987,27 @@ yuiha_walk_change_parent(
 {
 	struct yuiha_inode_info *p = head;
 	struct inode *parent_inode = &parent->i_ext3.vfs_inode,
-               *tmp_next_inode, *p_inode;
+							 *tmp_next_inode, *p_inode;
 	__u32 tmp_ino;
 
-  p->i_parent_ino = parent_inode->i_ino;
-  p->i_parent_generation = parent_inode->i_generation;
-  p_inode = &p->i_ext3.vfs_inode;
-  ext3_mark_inode_dirty(handle, p_inode);
+	p->i_parent_ino = parent_inode->i_ino;
+	p->i_parent_generation = parent_inode->i_generation;
+	p_inode = &p->i_ext3.vfs_inode;
+	ext3_mark_inode_dirty(handle, p_inode);
 
-  while (head->i_ext3.vfs_inode.i_ino != p->i_sibling_next_ino) {
-    tmp_ino = p->i_sibling_next_ino;
-    tmp_next_inode = ilookup(parent_inode->i_sb, tmp_ino);
-    if (!tmp_next_inode)
-      tmp_next_inode = ext3_iget(parent_inode->i_sb, tmp_ino);
-    p = YUIHA_I(tmp_next_inode);
+	while (head->i_ext3.vfs_inode.i_ino != p->i_sibling_next_ino) {
+		tmp_ino = p->i_sibling_next_ino;
+		tmp_next_inode = ilookup(parent_inode->i_sb, tmp_ino);
+		if (!tmp_next_inode)
+			tmp_next_inode = ext3_iget(parent_inode->i_sb, tmp_ino);
+		p = YUIHA_I(tmp_next_inode);
 
-    p->i_parent_ino = parent_inode->i_ino;
-    p->i_parent_generation = parent_inode->i_generation;
-    p_inode = &p->i_ext3.vfs_inode;
-    ext3_mark_inode_dirty(handle, p_inode);
-    iput(p_inode);
-  }
+		p->i_parent_ino = parent_inode->i_ino;
+		p->i_parent_generation = parent_inode->i_generation;
+		p_inode = &p->i_ext3.vfs_inode;
+		ext3_mark_inode_dirty(handle, p_inode);
+		iput(p_inode);
+	}
 
 }
 
@@ -2056,7 +2056,7 @@ retry:
 		if (ext3_judge_yuiha(fs_type))
 			inode->i_fop = &yuiha_file_operations;
 		else {
-		  inode->i_fop = &ext3_file_operations;
+			inode->i_fop = &ext3_file_operations;
 		}
 		ext3_set_aops(inode);
 		err = ext3_add_nondir(handle, dentry, inode);
@@ -2103,45 +2103,45 @@ retry:
 }
 
 static int yuiha_copy_inode_info(
-    struct yuiha_inode_info *dst_yuiha_ei,
-    struct yuiha_inode_info *src_yuiha_ei)
+		struct yuiha_inode_info *dst_yuiha_ei,
+		struct yuiha_inode_info *src_yuiha_ei)
 {
-  struct ext3_inode_info *dst_ext3_ei = &dst_yuiha_ei->i_ext3,
-                         *src_ext3_ei = &src_yuiha_ei->i_ext3;
-  struct inode *dst_inode = &dst_ext3_ei->vfs_inode,
-               *src_inode = &src_ext3_ei->vfs_inode;
-  struct address_space *const dst_mapping = &dst_inode->i_data,
-                       *const src_mapping = &src_inode->i_data;
-  
-  memcpy(dst_ext3_ei->i_data, src_ext3_ei->i_data,
-      sizeof(dst_ext3_ei->i_data));
-  dst_ext3_ei->i_flags = src_ext3_ei->i_flags;
-  dst_ext3_ei->i_file_acl = src_ext3_ei->i_file_acl;
-  dst_ext3_ei->i_dir_acl = src_ext3_ei->i_dir_acl;
-  dst_ext3_ei->i_dtime = src_ext3_ei->i_dtime;
-  dst_ext3_ei->i_block_group = src_ext3_ei->i_block_group;
-  dst_ext3_ei->i_state = EXT3_STATE_NEW;
-  dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
-  dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
-  
-  dst_inode->i_mode = src_inode->i_mode;
-  dst_inode->i_uid = src_inode->i_uid;
-  dst_inode->i_gid = src_inode->i_gid;
-  dst_inode->i_rdev = src_inode->i_rdev;
-  dst_inode->i_size = src_inode->i_size;
-  dst_inode->i_atime = src_inode->i_atime;
-  dst_inode->i_mtime = src_inode->i_mtime;
-  dst_inode->i_ctime = src_inode->i_ctime;
-  dst_inode->i_blkbits = src_inode->i_blkbits;
-  dst_inode->i_version = src_inode->i_version;
-  dst_inode->i_blocks = src_inode->i_blocks;
-  dst_inode->i_bytes = src_inode->i_bytes;
-  dst_inode->i_op = src_inode->i_op;
-  dst_inode->i_fop = src_inode->i_fop;
-  dst_inode->i_bdev = src_inode->i_bdev;
-  ext3_set_aops(dst_inode);
-  
-  return 0;
+	struct ext3_inode_info *dst_ext3_ei = &dst_yuiha_ei->i_ext3,
+												 *src_ext3_ei = &src_yuiha_ei->i_ext3;
+	struct inode *dst_inode = &dst_ext3_ei->vfs_inode,
+							 *src_inode = &src_ext3_ei->vfs_inode;
+	struct address_space *const dst_mapping = &dst_inode->i_data,
+											 *const src_mapping = &src_inode->i_data;
+	
+	memcpy(dst_ext3_ei->i_data, src_ext3_ei->i_data,
+			sizeof(dst_ext3_ei->i_data));
+	dst_ext3_ei->i_flags = src_ext3_ei->i_flags;
+	dst_ext3_ei->i_file_acl = src_ext3_ei->i_file_acl;
+	dst_ext3_ei->i_dir_acl = src_ext3_ei->i_dir_acl;
+	dst_ext3_ei->i_dtime = src_ext3_ei->i_dtime;
+	dst_ext3_ei->i_block_group = src_ext3_ei->i_block_group;
+	dst_ext3_ei->i_state = EXT3_STATE_NEW;
+	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
+	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
+	
+	dst_inode->i_mode = src_inode->i_mode;
+	dst_inode->i_uid = src_inode->i_uid;
+	dst_inode->i_gid = src_inode->i_gid;
+	dst_inode->i_rdev = src_inode->i_rdev;
+	dst_inode->i_size = src_inode->i_size;
+	dst_inode->i_atime = src_inode->i_atime;
+	dst_inode->i_mtime = src_inode->i_mtime;
+	dst_inode->i_ctime = src_inode->i_ctime;
+	dst_inode->i_blkbits = src_inode->i_blkbits;
+	dst_inode->i_version = src_inode->i_version;
+	dst_inode->i_blocks = src_inode->i_blocks;
+	dst_inode->i_bytes = src_inode->i_bytes;
+	dst_inode->i_op = src_inode->i_op;
+	dst_inode->i_fop = src_inode->i_fop;
+	dst_inode->i_bdev = src_inode->i_bdev;
+	ext3_set_aops(dst_inode);
+	
+	return 0;
 }
 
 static void yuiha_clear_producer_flg(struct inode *version_i)
@@ -2157,26 +2157,26 @@ static void yuiha_clear_producer_flg(struct inode *version_i)
 
 static int
 yuiha_add_version_to_tree(
-    handle_t *handle,
-    struct yuiha_inode_info *new_version_yi,
-    struct yuiha_inode_info *target_version_yi)
+		handle_t *handle,
+		struct yuiha_inode_info *new_version_yi,
+		struct yuiha_inode_info *target_version_yi)
 {
-  struct inode *parent_inode = NULL,
-               *new_version_inode = &new_version_yi->i_ext3.vfs_inode,
-               *target_version_inode = &target_version_yi->i_ext3.vfs_inode,
-               *prev_target_version_inode = NULL;
+	struct inode *parent_inode = NULL,
+							 *new_version_inode = &new_version_yi->i_ext3.vfs_inode,
+							 *target_version_inode = &target_version_yi->i_ext3.vfs_inode,
+							 *prev_target_version_inode = NULL;
 	struct yuiha_inode_info *parent_yi, *prev_target_version_yi = NULL;
-  struct super_block *sb = target_version_inode->i_sb;
+	struct super_block *sb = target_version_inode->i_sb;
 
-  if (target_version_yi->i_parent_ino) {
-    parent_inode = ilookup(sb, target_version_yi->i_parent_ino);
-    if (!parent_inode)
-      parent_inode = ext3_iget(sb, target_version_yi->i_parent_ino);
-    parent_yi = YUIHA_I(parent_inode);
-  }
+	if (target_version_yi->i_parent_ino) {
+		parent_inode = ilookup(sb, target_version_yi->i_parent_ino);
+		if (!parent_inode)
+			parent_inode = ext3_iget(sb, target_version_yi->i_parent_ino);
+		parent_yi = YUIHA_I(parent_inode);
+	}
 
 	if (!target_version_yi->i_child_ino) {
-	  // There is no child version
+		// There is no child version
 		yuiha_link_child(handle, new_version_yi, target_version_yi);
 		yuiha_set_parent(handle, new_version_yi, target_version_yi);
 
@@ -2184,69 +2184,69 @@ yuiha_add_version_to_tree(
 			yuiha_sibling_link_self(handle, new_version_yi);
 		} else {
 			prev_target_version_inode =
-        ilookup(sb, target_version_yi->i_sibling_prev_ino);
-      if (!prev_target_version_inode)
-        prev_target_version_inode =
-          ext3_iget(sb, target_version_yi->i_sibling_prev_ino);
-      prev_target_version_yi = YUIHA_I(prev_target_version_inode);
+				ilookup(sb, target_version_yi->i_sibling_prev_ino);
+			if (!prev_target_version_inode)
+				prev_target_version_inode =
+					ext3_iget(sb, target_version_yi->i_sibling_prev_ino);
+			prev_target_version_yi = YUIHA_I(prev_target_version_inode);
 
 			yuiha_remove_from_sibling(handle, target_version_yi);
-      yuiha_insert_to_sibling(handle, prev_target_version_yi, new_version_yi);
+			yuiha_insert_to_sibling(handle, prev_target_version_yi, new_version_yi);
 		}
 
-    yuiha_link_parent(handle, target_version_yi, new_version_yi);
+		yuiha_link_parent(handle, target_version_yi, new_version_yi);
 		yuiha_child_set_zero(handle, target_version_yi);
 		yuiha_sibling_link_self(handle, target_version_yi);
 
-	  if (parent_inode)
-      parent_yi->i_child_ino = new_version_inode->i_ino;
-    if (prev_target_version_inode)
-      iput(prev_target_version_inode);
-  } else {
-	  // There is child version
-    struct inode *child_version_inode;
-    struct yuiha_inode_info *child_version_yi;
+		if (parent_inode)
+			parent_yi->i_child_ino = new_version_inode->i_ino;
+		if (prev_target_version_inode)
+			iput(prev_target_version_inode);
+	} else {
+		// There is child version
+		struct inode *child_version_inode;
+		struct yuiha_inode_info *child_version_yi;
 
-    child_version_inode = ilookup(sb, target_version_yi->i_child_ino);
-    if (!child_version_inode)
-      child_version_inode = ext3_iget(sb, target_version_yi->i_child_ino);
-    child_version_yi = YUIHA_I(child_version_inode);
+		child_version_inode = ilookup(sb, target_version_yi->i_child_ino);
+		if (!child_version_inode)
+			child_version_inode = ext3_iget(sb, target_version_yi->i_child_ino);
+		child_version_yi = YUIHA_I(child_version_inode);
 
-    prev_target_version_inode =
-      ilookup(sb, target_version_yi->i_sibling_prev_ino);
-    if (!prev_target_version_inode)
-      prev_target_version_inode =
-        ext3_iget(sb, target_version_yi->i_sibling_prev_ino);
-    prev_target_version_yi = YUIHA_I(prev_target_version_inode);
+		prev_target_version_inode =
+			ilookup(sb, target_version_yi->i_sibling_prev_ino);
+		if (!prev_target_version_inode)
+			prev_target_version_inode =
+				ext3_iget(sb, target_version_yi->i_sibling_prev_ino);
+		prev_target_version_yi = YUIHA_I(prev_target_version_inode);
 
-    // set new_version target_version
-    // insert target version to sibling list
-    // change parent ino in the sibling list
+		// set new_version target_version
+		// insert target version to sibling list
+		// change parent ino in the sibling list
 
-    yuiha_set_parent(handle, new_version_yi, target_version_yi);
+		yuiha_set_parent(handle, new_version_yi, target_version_yi);
 		yuiha_set_child(handle, new_version_yi, target_version_yi);
-    if (parent_yi && parent_yi->i_child_ino == target_version_inode->i_ino)
-      yuiha_link_child(handle, parent_yi, new_version_yi);
+		if (parent_yi && parent_yi->i_child_ino == target_version_inode->i_ino)
+			yuiha_link_child(handle, parent_yi, new_version_yi);
 
-    if (yuiha_test_sibling_link_self(target_version_yi)) {
-      yuiha_sibling_link_self(handle, new_version_yi);
-    } else {
-      yuiha_remove_from_sibling(handle, target_version_yi);
-      yuiha_insert_to_sibling(handle, prev_target_version_yi, new_version_yi);
-    }
+		if (yuiha_test_sibling_link_self(target_version_yi)) {
+			yuiha_sibling_link_self(handle, new_version_yi);
+		} else {
+			yuiha_remove_from_sibling(handle, target_version_yi);
+			yuiha_insert_to_sibling(handle, prev_target_version_yi, new_version_yi);
+		}
 
-    yuiha_insert_to_sibling(handle, child_version_yi, target_version_yi);
-    yuiha_child_set_zero(handle, target_version_yi);
-    yuiha_walk_change_parent(handle, child_version_yi, new_version_yi);
+		yuiha_insert_to_sibling(handle, child_version_yi, target_version_yi);
+		yuiha_child_set_zero(handle, target_version_yi);
+		yuiha_walk_change_parent(handle, child_version_yi, new_version_yi);
 
 		if (child_version_inode)
 			iput(child_version_inode);
-    if (prev_target_version_inode)
-      iput(prev_target_version_inode);
+		if (prev_target_version_inode)
+			iput(prev_target_version_inode);
 	}
 
 	target_version_yi->parent_inode = new_version_inode;
-  iput(parent_inode);	
+	iput(parent_inode);	
 
 	return 0;
 }
@@ -2258,7 +2258,7 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 	struct pagevec pvec;
 	pgoff_t index, end, done_index;
 	int done = 0, nr_pages;
-  unsigned blocksize = 1 << version_i->i_blkbits;
+	unsigned blocksize = 1 << version_i->i_blkbits;
 
 	pagevec_init(&pvec, 0);
 
@@ -2278,12 +2278,12 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 		for (i = 0; i < nr_pages; i++) {
 			struct page *page = pvec.pages[i];
 			/*
-       * At this point, the page may be truncated or
-		 	 * invalidated (changing page->mapping to NULL), or
-		   * even swizzled back from swapper_space to tmpfs file
-		   * mapping. However, page->index will not change
-		   * because we have a reference on the page.
-		  */
+			 * At this point, the page may be truncated or
+			 * invalidated (changing page->mapping to NULL), or
+			 * even swizzled back from swapper_space to tmpfs file
+			 * mapping. However, page->index will not change
+			 * because we have a reference on the page.
+			*/
 			if (page->index > end) {
 				done = 1;
 				break;
@@ -2291,16 +2291,16 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 
 			done_index = page->index + 1;
 
-      lock_page(page);
+			lock_page(page);
 
 			if (unlikely(page->mapping != mapping)) {
 				unlock_page(page);
 				continue;
 			}
 
-      if (!page_has_buffers(page)) {
-        create_empty_buffers(page, blocksize, 0);
-      }
+			if (!page_has_buffers(page)) {
+				create_empty_buffers(page, blocksize, 0);
+			}
 
 			head = page_buffers(page);
 			bh = head;
@@ -2313,7 +2313,7 @@ int yuiha_buffer_head_shared(struct inode *version_i)
 			unlock_page(page);
 		}
 		index += nr_pages;
-    pagevec_release(&pvec);
+		pagevec_release(&pvec);
 	}
 
 	return 0;
@@ -2346,7 +2346,7 @@ struct dentry * __yuiha_create_snapshot(
 		new_version_yi = YUIHA_I(new_version_i);
 
 		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
-	  yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
+		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
 		yuiha_buffer_head_shared(new_version_target_i);
 		yuiha_clear_producer_flg(new_version_target_i);
 
@@ -2363,7 +2363,7 @@ struct dentry * __yuiha_create_snapshot(
 
 		d_splice_alias(new_version_i, new_version);
 		atomic_inc(&new_version_i->i_count);
-	  unlock_new_inode(new_version_i);
+		unlock_new_inode(new_version_i);
 		dput(new_version);
 	}
 
@@ -2379,19 +2379,19 @@ struct dentry * yuiha_create_snapshot(
 				struct inode *new_version_target_i,
 				struct dentry *lookup_dentry)
 {
-  struct dentry *new_version;
-  struct address_space *mapping = new_version_target_i->i_mapping;
-  ext3_debug("");
+	struct dentry *new_version;
+	struct address_space *mapping = new_version_target_i->i_mapping;
+	ext3_debug("");
 
-  mutex_lock(&new_version_target_i->i_mutex);
+	mutex_lock(&new_version_target_i->i_mutex);
 
 	new_version =
-    __yuiha_create_snapshot(lookup_dentry->d_parent,
-        new_version_target_i, lookup_dentry);
+		__yuiha_create_snapshot(lookup_dentry->d_parent,
+				new_version_target_i, lookup_dentry);
 
-  mutex_unlock(&new_version_target_i->i_mutex);
+	mutex_unlock(&new_version_target_i->i_mutex);
 
-  return new_version;
+	return new_version;
 }
 static int ext3_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 {
@@ -2483,15 +2483,15 @@ static int empty_dir (struct inode * inode)
 
 	sb = inode->i_sb;
 	if (inode->i_size < EXT3_DIR_REC_LEN(1) + EXT3_DIR_REC_LEN(2) ||
-	    !(bh = ext3_bread (NULL, inode, 0, 0, &err))) {
+			!(bh = ext3_bread (NULL, inode, 0, 0, &err))) {
 		if (err)
 			ext3_error(inode->i_sb, __func__,
-				   "error %d reading directory #%lu offset 0",
-				   err, inode->i_ino);
+					 "error %d reading directory #%lu offset 0",
+					 err, inode->i_ino);
 		else
 			ext3_warning(inode->i_sb, __func__,
-				     "bad directory (dir #%lu) - no data block",
-				     inode->i_ino);
+						 "bad directory (dir #%lu) - no data block",
+						 inode->i_ino);
 		return 1;
 	}
 	de = (struct ext3_dir_entry_2 *) bh->b_data;
@@ -2501,8 +2501,8 @@ static int empty_dir (struct inode * inode)
 			strcmp (".", de->name) ||
 			strcmp ("..", de1->name)) {
 		ext3_warning (inode->i_sb, "empty_dir",
-			      "bad directory (dir #%lu) - no `.' or `..'",
-			      inode->i_ino);
+						"bad directory (dir #%lu) - no `.' or `..'",
+						inode->i_ino);
 		brelse (bh);
 		return 1;
 	}
@@ -2519,9 +2519,9 @@ static int empty_dir (struct inode * inode)
 			if (!bh) {
 				if (err)
 					ext3_error(sb, __func__,
-						   "error %d reading directory"
-						   " #%lu offset %lu",
-						   err, inode->i_ino, offset);
+							 "error %d reading directory"
+							 " #%lu offset %lu",
+							 err, inode->i_ino, offset);
 				offset += sb->s_blocksize;
 				continue;
 			}
@@ -2663,7 +2663,7 @@ int ext3_orphan_del(handle_t *handle, struct inode *inode)
 			&list_entry(prev, struct ext3_inode_info, i_orphan)->vfs_inode;
 
 		jbd_debug(4, "orphan inode %lu will point to %lu\n",
-			  i_prev->i_ino, ino_next);
+				i_prev->i_ino, ino_next);
 		err = ext3_reserve_inode_write(handle, i_prev, &iloc2);
 		if (err)
 			goto out_brelse;
@@ -2724,8 +2724,8 @@ static int ext3_rmdir (struct inode * dir, struct dentry *dentry)
 		goto end_rmdir;
 	if (inode->i_nlink != 2)
 		ext3_warning (inode->i_sb, "ext3_rmdir",
-			      "empty directory has nlink!=2 (%d)",
-			      inode->i_nlink);
+						"empty directory has nlink!=2 (%d)",
+						inode->i_nlink);
 	inode->i_version++;
 	clear_nlink(inode);
 	/* There's no need to set i_disksize: the fact that i_nlink is
@@ -2776,8 +2776,8 @@ static int ext3_unlink(struct inode * dir, struct dentry *dentry)
 
 	if (!inode->i_nlink) {
 		ext3_warning (inode->i_sb, "ext3_unlink",
-			      "Deleting nonexistent file (%lu), %d",
-			      inode->i_ino, inode->i_nlink);
+						"Deleting nonexistent file (%lu), %d",
+						inode->i_ino, inode->i_nlink);
 		inode->i_nlink = 1;
 	}
 	retval = ext3_delete_entry(handle, dir, de, bh);
@@ -2906,7 +2906,7 @@ retry:
  * higher-level routines.
  */
 static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
-			   struct inode * new_dir,struct dentry *new_dentry)
+				 struct inode * new_dir,struct dentry *new_dentry)
 {
 	handle_t *handle;
 	struct inode * old_inode, * new_inode;
@@ -2975,7 +2975,7 @@ static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
 		ext3_journal_get_write_access(handle, new_bh);
 		new_de->inode = cpu_to_le32(old_inode->i_ino);
 		if (EXT3_HAS_INCOMPAT_FEATURE(new_dir->i_sb,
-					      EXT3_FEATURE_INCOMPAT_FILETYPE))
+								EXT3_FEATURE_INCOMPAT_FILETYPE))
 			new_de->file_type = old_de->file_type;
 		new_dir->i_version++;
 		new_dir->i_ctime = new_dir->i_mtime = CURRENT_TIME_SEC;
@@ -2997,9 +2997,9 @@ static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
 	 * ok, that's it
 	 */
 	if (le32_to_cpu(old_de->inode) != old_inode->i_ino ||
-	    old_de->name_len != old_dentry->d_name.len ||
-	    strncmp(old_de->name, old_dentry->d_name.name, old_de->name_len) ||
-	    (retval = ext3_delete_entry(handle, old_dir,
+			old_de->name_len != old_dentry->d_name.len ||
+			strncmp(old_de->name, old_dentry->d_name.name, old_de->name_len) ||
+			(retval = ext3_delete_entry(handle, old_dir,
 					old_de, old_bh)) == -ENOENT) {
 		/* old_de could have moved from under us during htree split, so
 		 * make sure that we are deleting the right entry.  We might
@@ -3009,10 +3009,10 @@ static int ext3_rename (struct inode * old_dir, struct dentry *old_dentry,
 		struct ext3_dir_entry_2 *old_de2;
 
 		old_bh2 = ext3_find_entry(old_dir, &old_dentry->d_name,
-					  &old_de2);
+						&old_de2);
 		if (old_bh2) {
 			retval = ext3_delete_entry(handle, old_dir,
-						   old_de2, old_bh2);
+							 old_de2, old_bh2);
 			brelse(old_bh2);
 		}
 	}
