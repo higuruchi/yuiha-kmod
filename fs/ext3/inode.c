@@ -1976,7 +1976,9 @@ ext3_readpages(struct file *file, struct address_space *mapping,
 static void ext3_invalidatepage(struct page *page, unsigned long offset)
 {
 	struct inode *inode = page->mapping->host;
+	ext3_debug("ino=%d", inode->i_ino);
 	journal_t *journal = EXT3_JOURNAL(page->mapping->host);
+	ext3_debug();
 
 	/*
 	 * If it's a full truncate we just forget about the pending dirtying
@@ -1984,7 +1986,6 @@ static void ext3_invalidatepage(struct page *page, unsigned long offset)
 	if (offset == 0)
 		ClearPageChecked(page);
 
-	ext3_debug("");
 	journal_invalidatepage(journal, page, offset);
 }
 

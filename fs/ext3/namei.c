@@ -1131,10 +1131,10 @@ static struct dentry *ext3_lookup(struct inode * dir,
 							yuiha_create_snapshot(dentry->d_parent, parent_inode, dentry);
 
 				if (dentry_found)
-          return dentry_found;
+					return dentry_found;
 
 				inode = parent_inode;
-        goto dentry_cache_not_exists;
+				goto dentry_cache_not_exists;
 			}
 
       // if O_PARENT O_VSEARCH flag is not set
@@ -1142,12 +1142,13 @@ static struct dentry *ext3_lookup(struct inode * dir,
         // mnt_want_write_file(file);
 				new_version =
 						yuiha_create_snapshot(dentry->d_parent, inode, dentry);				
-			} else {
-		    if (!yi->parent_inode && yi->i_parent_ino) {
-					yi->parent_inode = ilookup(dir->i_sb, yi->i_parent_ino);
-					if (!yi->parent_inode)
-						yi->parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
-	      }
+			}
+
+			if (!yi->parent_inode && yi->i_parent_ino) {
+				ext3_debug();
+				yi->parent_inode = ilookup(dir->i_sb, yi->i_parent_ino);
+				if (!yi->parent_inode)
+					yi->parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
 			}
 
 			hash = partial_name_hash(hash, inode->i_generation);
@@ -2361,6 +2362,7 @@ struct dentry * __yuiha_create_snapshot(
 		ext3_debug("new_version->d_name.hash=%lu", new_version->d_name.hash);
 
 		d_splice_alias(new_version_i, new_version);
+		atomic_inc(&new_version_i->i_count);
 	  unlock_new_inode(new_version_i);
 		dput(new_version);
 	}

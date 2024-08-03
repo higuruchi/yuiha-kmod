@@ -49,19 +49,25 @@ static int __yuiha_block_prepare_write(
 	BUG_ON(from > to);
 
 	blocksize = 1 << inode->i_blkbits;
-	if (!page_has_buffers(page))
+	ext3_debug();
+	if (!page_has_buffers(page)) {
+		ext3_debug();
 		create_empty_buffers(page, blocksize, 0);
+	}
 	head = page_buffers(page);
+	ext3_debug();
 
 	bbits = inode->i_blkbits;
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 
 	// copy buffer_head structure to parent_inode cache.
-	if (PageDirty(page) && PageShared(page)) {
-		if (parent_page && !page_has_buffers(parent_page))
+	if (parent_page && PageShared(page)) {
+		if (!page_has_buffers(parent_page))
 			create_empty_buffers(parent_page, blocksize, 0);
-		
+
+		ext3_debug();
 		parent_head = page_buffers(parent_page);
+		ext3_debug();
 		for (bh = head, parent_bh = parent_head, block_start = 0;
 					bh != head || parent_bh != parent_head || !block_start;
 					block++, block_start=block_end, bh = bh->b_this_page,
@@ -156,6 +162,23 @@ static int __yuiha_block_prepare_write(
 	return err;
 }
 
+static int yuiha_block_prepare_write(
+		struct inode *inode, struct page *page, struct page *parent_page, 
+		unsigned start, unsigned end, get_block_t *get_block) {
+
+	int status = 0;
+	if (parent_page && PageShared(page))
+		BUG_ON(!PageLocked(parent_page));
+
+	status = __yuiha_block_prepare_write(inode, page, parent_page, 
+					start, end, get_block);
+
+	if (parent_page && PageShared(page))
+		unlock_page(parent_page);
+
+	return status;
+}
+
 /*
  * block_write_begin takes care of the basic task of block allocation and
  * bringing partial write blocks uptodate first.
@@ -197,7 +220,10 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 		BUG_ON(!PageLocked(page));
 
 
-	if (parent_inode && PageDirty(page) && PageShared(page)) {
+	if (parent_inode)
+		mutex_lock(&parent_inode->i_mutex);
+
+	if (parent_inode && PageShared(page)) {
 		ext3_debug("index=%d", index);
 		parent_ownpage = 1;
 		parent_mapping = parent_inode->i_mapping;
@@ -208,13 +234,16 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 		} else
 			BUG_ON(!PageLocked(page));
 	}
-	ext3_debug("");
-	status = __yuiha_block_prepare_write(inode, page, parent_page, 
+
+	ext3_debug();
+	status = yuiha_block_prepare_write(inode, page, parent_page, 
 					start, end, get_block);
-	ext3_debug("");
+	if (parent_inode)
+		mutex_unlock(&parent_inode->i_mutex);
+	ext3_debug();
 
 	if (unlikely(status)) {
-		ext3_debug("");
+		ext3_debug();
 		ClearPageUptodate(page);
 		if (parent_page)
 			ClearPageUptodate(parent_page);

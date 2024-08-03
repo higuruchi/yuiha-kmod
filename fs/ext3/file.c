@@ -63,9 +63,12 @@ static int ext3_release_file (struct inode * inode, struct file * filp)
 	// only yuihafs
 	yi = YUIHA_I(inode);
 	if (yi->parent_inode) {
-		ext3_debug("%lu %lu\n", inode->i_ino, inode->i_count);
-		//iput(yi->parent_inode);
-		//yi->parent_inode = NULL;
+		ext3_debug("%lu %lu %lu %lu\n",
+				inode->i_ino, inode->i_count,
+				yi->parent_inode->i_ino,
+				yi->parent_inode->i_count);
+		iput(yi->parent_inode);
+		yi->parent_inode = NULL;
 	}
 
 	return 0;
