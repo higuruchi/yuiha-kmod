@@ -39,7 +39,7 @@ static int __yuiha_block_prepare_write(
 	struct inode *parent_inode = yi->parent_inode;
 	handle_t *handle = NULL;
 
-  struct super_block *sb = inode->i_sb;
+	struct super_block *sb = inode->i_sb;
 	struct ext3_sb_info *sbi = EXT3_SB(sb);
 
 
@@ -49,19 +49,25 @@ static int __yuiha_block_prepare_write(
 	BUG_ON(from > to);
 
 	blocksize = 1 << inode->i_blkbits;
-	if (!page_has_buffers(page))
+	ext3_debug();
+	if (!page_has_buffers(page)) {
+		ext3_debug();
 		create_empty_buffers(page, blocksize, 0);
+	}
 	head = page_buffers(page);
+	ext3_debug();
 
 	bbits = inode->i_blkbits;
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 
 	// copy buffer_head structure to parent_inode cache.
-	if (PageDirty(page) && PageShared(page)) {
-		if (parent_page && !page_has_buffers(parent_page))
+	if (parent_page && PageShared(page)) {
+		if (!page_has_buffers(parent_page))
 			create_empty_buffers(parent_page, blocksize, 0);
-		
+
+		ext3_debug();
 		parent_head = page_buffers(parent_page);
+		ext3_debug();
 		for (bh = head, parent_bh = parent_head, block_start = 0;
 					bh != head || parent_bh != parent_head || !block_start;
 					block++, block_start=block_end, bh = bh->b_this_page,
@@ -69,27 +75,27 @@ static int __yuiha_block_prepare_write(
 
 			block_end = block_start + blocksize;
 			if (buffer_shared(bh)) {
-        ext3_debug("bh->b_state=%ld", bh->b_state);
+				ext3_debug("bh->b_state=%ld", bh->b_state);
 				parent_bh->b_blocknr = bh->b_blocknr;
 				parent_bh->b_bdev = bh->b_bdev;
 				parent_bh->b_size = bh->b_size;
 				memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
 
-			  clear_buffer_new(parent_bh);
+				clear_buffer_new(parent_bh);
 				set_buffer_uptodate(parent_bh);
 				mark_buffer_dirty(parent_bh);
-        set_buffer_mapped(parent_bh);
+				set_buffer_mapped(parent_bh);
 				//clear_buffer_shared(parent_bh);
 			}
 		}
-    // TODO: need clearshared(page)?
+		// TODO: need clearshared(page)?
 		// flush_dcache_page(parent_page);
 		// mark_page_accessed(parent_page);
 	}
 
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 	for(bh = head, block_start = 0; bh != head || !block_start;
-	    block++, block_start=block_end, bh = bh->b_this_page) {
+			block++, block_start=block_end, bh = bh->b_this_page) {
 		block_end = block_start + blocksize;
 		if (block_end <= from || block_start >= to) {
 			if (PageUptodate(page)) {
@@ -103,14 +109,14 @@ static int __yuiha_block_prepare_write(
 
 		if (!buffer_mapped(bh) || buffer_shared(bh)) {
 			WARN_ON(bh->b_size != blocksize);
-	    ext3_debug("inode->i_ino=%lu", inode->i_ino);
+			ext3_debug("inode->i_ino=%lu", inode->i_ino);
 			err = get_block(inode, block, bh, 1);
 			if (err)
 				break;
 
 			if (buffer_shared(bh)) {
-        set_buffer_uptodate(bh);
-        clear_buffer_shared(bh);
+				set_buffer_uptodate(bh);
+				clear_buffer_shared(bh);
 			}
 
 			if (buffer_new(bh)) {
@@ -135,8 +141,8 @@ static int __yuiha_block_prepare_write(
 			continue; 
 		}
 		if (!buffer_uptodate(bh) && !buffer_delay(bh) &&
-		    !buffer_unwritten(bh) &&
-		     (block_start < from || block_end > to)) {
+				!buffer_unwritten(bh) &&
+				 (block_start < from || block_end > to)) {
 			ext3_debug("");
 			ll_rw_block(READ, 1, &bh);
 			*wait_bh++=bh;
@@ -145,7 +151,7 @@ static int __yuiha_block_prepare_write(
 	/*
 	 * If we issued read requests - let them complete.
 	 */
-  ext3_debug("");
+	ext3_debug("");
 	while(wait_bh > wait) {
 		wait_on_buffer(*--wait_bh);
 		if (!buffer_uptodate(*wait_bh))
@@ -154,6 +160,23 @@ static int __yuiha_block_prepare_write(
 	if (unlikely(err))
 		page_zero_new_buffers(page, from, to);
 	return err;
+}
+
+static int yuiha_block_prepare_write(
+		struct inode *inode, struct page *page, struct page *parent_page, 
+		unsigned start, unsigned end, get_block_t *get_block) {
+
+	int status = 0;
+	if (parent_page && PageShared(page))
+		BUG_ON(!PageLocked(parent_page));
+
+	status = __yuiha_block_prepare_write(inode, page, parent_page, 
+					start, end, get_block);
+
+	if (parent_page && PageShared(page))
+		unlock_page(parent_page);
+
+	return status;
 }
 
 /*
@@ -197,7 +220,10 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 		BUG_ON(!PageLocked(page));
 
 
-	if (parent_inode && PageDirty(page) && PageShared(page)) {
+	if (parent_inode)
+		mutex_lock(&parent_inode->i_mutex);
+
+	if (parent_inode && PageShared(page)) {
 		ext3_debug("index=%d", index);
 		parent_ownpage = 1;
 		parent_mapping = parent_inode->i_mapping;
@@ -208,13 +234,16 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 		} else
 			BUG_ON(!PageLocked(page));
 	}
-	ext3_debug("");
-	status = __yuiha_block_prepare_write(inode, page, parent_page, 
+
+	ext3_debug();
+	status = yuiha_block_prepare_write(inode, page, parent_page, 
 					start, end, get_block);
-	ext3_debug("");
+	if (parent_inode)
+		mutex_unlock(&parent_inode->i_mutex);
+	ext3_debug();
 
 	if (unlikely(status)) {
-		ext3_debug("");
+		ext3_debug();
 		ClearPageUptodate(page);
 		if (parent_page)
 			ClearPageUptodate(parent_page);
