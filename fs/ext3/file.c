@@ -97,6 +97,7 @@ static int yuiha_parent_file_open(struct file *filp)
 static int yuiha_file_open(struct inode * inode, struct file *filp)
 {
 	int ret = generic_file_open(inode, filp);
+	struct ext3_inode_info *ei = EXT3_I(inode);
 
 	ext3_debug("%lu %lu\n", inode->i_ino, inode->i_count);
 

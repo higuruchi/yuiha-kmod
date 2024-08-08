@@ -428,6 +428,7 @@ static Indirect *yuiha_get_branch(struct inode *inode, int depth,
 	ext3_debug("depth=%d", depth);
 
 	*err = 0;
+	struct ext3_inode_info *ei = EXT3_I(inode);
 	/* i_data is not going away, no lock needed */
 	add_chain (chain, NULL, EXT3_I(inode)->i_data + *offsets);
 	if (S_ISREG(inode->i_mode) && is_not_journal_file)
@@ -932,6 +933,8 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 		ll_rw_block(READ, 1, &bh_result);
 		wait_on_buffer(bh_result);
 		clear_buffer_mapped(bh_result);
+		set_buffer_uptodate(bh_result);
+		mark_buffer_dirty(bh_result);
 		set_buffer_shared(bh_result);
 	}
 
@@ -1022,7 +1025,6 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_yuiha = ext3_judge_yuiha(fs_type),
 			is_not_journal_file = es->s_journal_inum != inode->i_ino;
-	sector_t cow_block_no;
 
 	J_ASSERT(handle != NULL || create == 0);
 	depth = ext3_block_to_path(inode,iblock,offsets,&blocks_to_boundary);
@@ -1041,15 +1043,19 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	/* Simplest case - block found, no allocation needed */
 	if (!partial) {
 		ext3_debug("");
-		// if (chain[depth-1].bh is shared)
 		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			mutex_lock(&ei->truncate_mutex);
 			ext3_debug("");
-			// if unmapped; then read block
-			cow_block_no = le32_to_cpu(chain[depth-1].key);
 			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
 							blocks_to_boundary, depth, offsets, chain, bh_result); 
 			mutex_unlock(&ei->truncate_mutex);
+		}
+
+		if (is_yuiha && !create && S_ISREG(inode->i_mode) && is_not_journal_file) {
+			if (!test_producer_flg(*chain[depth - 1].p)) {
+				SetPageShared(bh_result->b_page);
+				ext3_debug();
+			}
 		}
 
 		first_block = le32_to_cpu(chain[depth - 1].key);
@@ -1390,6 +1396,7 @@ static int ext3_write_begin(struct file *file, struct address_space *mapping,
 				struct page **pagep, void **fsdata)
 {
 	struct inode *inode = mapping->host;
+	struct ext3_inode_info *ei = EXT3_I(inode);
 	int ret;
 	handle_t *handle;
 	int retries = 0;
@@ -1546,7 +1553,7 @@ static int ext3_ordered_write_end(struct file *file,
 		parent_page = find_get_page(parent_mapping, index);
 
 		ext3_debug("parent_page=%p", parent_page);
-		if (parent_page && PageShared(page)) {
+		if (parent_page && PageShared(page) && PageDirty(parent_page)) {
 			block_write_end(NULL, parent_mapping, pos, len, copied,
 							parent_page, fsdata);
 			ext3_debug("");
