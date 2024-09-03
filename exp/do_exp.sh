@@ -2,7 +2,7 @@
 
 FS=$1
 COUNT=${2:-100}
-DEV="/dev/vdb"
+DEV="/dev/sda"
 PART="${DEV}1"
 MOUNT_POINT="/home/${USER}/research"
 EXP_MOUNT_POINT="/home/${USER}/exp_mnt"
@@ -22,8 +22,8 @@ IO_PATTERN_DIR_PATH="${YUIHA_KMOD_PATH}/exp"
 REL_LOG_FILE_PATH="research/yuiha-kmod/exp/exp_data/${exp_date}_${FS}"
 
 mode=(
-	append
 	seq
+	# append
 )
 
 append_size=(
@@ -34,10 +34,10 @@ append_size=(
 )
 
 seq_size=(
-	60k
-	250k
-	1000k
-	4000k
+	500k
+	# 1000k
+	# 2000k
+	# 4000k
 )
 
 vmemu_size=(
@@ -46,9 +46,9 @@ vmemu_size=(
 )
 
 ss_span=(
-	1
-	2
-	4
+	# 1
+	# 2
+	# 4
 	200
 )
 
@@ -258,56 +258,6 @@ function append_write_exp () {
 	# local mean_bw=`echo "scale=6; ${bw_sum} / ${COUNT}" | bc`
 	# echo ${mean_bw}
 }
-
-#####################################################
-# Append write experiment script
-#####################################################
-# function vmemu_write_exp () {
-# 	VMEMU_KINDS=${1:-"start"}
-# 	COUNT=${2:-100}
-# 	SS_SPAN=${3:-1}
-# 	MOUNT_POINT=${4:-"."}
-# 	UTIL_PATH=${5:-"yutil"}
-# 	DDD_PATH=${6:-"ddd"}
-# 	IO_PATTERN_DIR_PATH=${7}
-# 	FS=${8}
-# 
-# 	FILE_NAME="vmimg.img"
-# 
-# 	if !(type ${YUTIL_PATH} > /dev/null 2>&1); then
-# 	 	raise "yutil command not found"
-# 	 	return 1
-# 	fi
-# 
-# 	if !(type ${DDD_PATH} > /dev/null 2>&1); then
-# 	 	raise "ddd command not found"
-# 	 	return 1
-# 	fi
-# 
-# 	if [ ! -e "${IO_PATTERN_DIR_PATH}/vm_${VMEMU_KINDS}_disk_io.log" ]; then
-# 	 	raise "${IO_PATTERN_DIR_PATH}/vm_${VMEMU_KINDS}_disk_io.log not found"
-# 	 	return 1
-# 	fi
-# 
-# 	if [ -e "${MOUNT_POINT}/${FILE_NAME}" ]; then
-# 		rm "${MOUNT_POINT}/${FILE_NAME}"
-# 	fi
-# 
-# 
-# 	for i in `seq 1 ${COUNT}`; do
-# 		echo "vmemu ${VMEMU_KINDS} ${i}"
-# 		${DDD_PATH} "${MOUNT_POINT}/${FILE_NAME}" < "${IO_PATTERN_DIR_PATH}/vm_${VMEMU_KINDS}_disk_io.log"
-# 
-# 		if [ $((i%SS_SPAN)) -eq 0 ]; then
-# 			echo "Create SS ${i}"
-# 			if [ ${FS} = "yuiha" ]; then
-# 				${YUTIL_PATH} --snapshot="${MOUNT_POINT}/${FILE_NAME}"
-# 			elif [ ${FS} = "nilfs2" ]; then
-# 				sudo mkcp -s
-# 			fi
-# 		fi
-# 	done
-# }
 
 init
 
