@@ -29,13 +29,14 @@ def calc_disk_io_cumulative_sum():
             lba_imos[(l[1] + l[2]) // 10] -= 1
     
     lba_sum[0] = lba_imos[0]
+    print("lba_start,lba_end,count");
     for i in range(1, lba_arr_count):
         lba_index[i] = i
         lba_sum[i] = lba_sum[i - 1] + lba_imos[i]
         if lba_sum[i] != 0:
             lba_graph_index.append(i)
             lba_graph_sum.append(lba_sum[i])
-            print("lba: {} ~ {}, count: {}".format(i*10, i*10+9, lba_sum[i]));
+            print("{},{},{}".format(i*10, i*10+9, lba_sum[i]));
 
 def setup_fig(ax, data, time_max):
     min_lba = min(data[0])
