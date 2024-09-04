@@ -23,7 +23,7 @@ ss_span = ["nilfs", "1", "2", "4"]
 ss_span_label = ["nilfs", "100%", "50%", "25%"]
 
 yuiha_seq_ax = fig_seq.add_subplot(6, 1, (1, 2))
-yuiha_seq_ax.set_title("(a) The differential disk size of sequential write", y=-0.27)
+yuiha_seq_ax.set_title("(a) Sequential write", y=-0.27)
 yuiha_seq_ax.set_xlabel("Sequential write size")
 yuiha_seq_ax.set_ylabel("Disk usage(KB)")
 yuiha_seq_ax.yaxis.set_major_formatter(ptick.ScalarFormatter(useMathText=True))
@@ -49,9 +49,9 @@ for i, (s, l, c) in enumerate(zip(ss_span, ss_span_label, colors)):
             label=label)
 
 yuiha_seq_ax.set_xticks(left + width + 0.1)
-seq_file_size_label = ["60KB", "250KB", "1MB", "4MB"]
+seq_file_size_label = ["500KB", "1MB", "2MB", "4MB"]
 yuiha_seq_ax.set_xticklabels(labels=seq_file_size_label)
-yuiha_seq_ax.set_yscale("log")
+# yuiha_seq_ax.set_yscale("log")
 yuiha_seq_ax.legend(loc='upper left')
 
 # Append
@@ -59,7 +59,7 @@ yuiha_append_df = yuiha_df.query('mode == "append"')
 nilfs_append_df = nilfs_df.query('mode == "append"')
 
 yuiha_append_ax = fig_seq.add_subplot(6, 1, (3, 4))
-yuiha_append_ax.set_title("(b) The differential disk size of append write", y=-0.27)
+yuiha_append_ax.set_title("(b) Append", y=-0.27)
 yuiha_append_ax.set_xlabel("Append size")
 yuiha_append_ax.set_ylabel("Disk usage(KB)")
 yuiha_append_ax.yaxis.set_major_formatter(ptick.ScalarFormatter(useMathText=True))
@@ -90,4 +90,4 @@ yuiha_append_ax.set_xticklabels(labels=append_write_size_label)
 yuiha_append_ax.legend(loc='upper left')
 
 plt.tight_layout()
-plt.savefig("disksize.png", format="png")
+plt.savefig("disksize1.png", format="png")

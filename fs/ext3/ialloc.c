@@ -458,7 +458,7 @@ struct inode *ext3_new_inode(handle_t *handle, struct inode * dir, int mode)
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 
-	if (ext3_judge_yuiha(sb->s_type)) {
+	if (ext3_judge_yuiha(sb)) {
 		yi = YUIHA_I(inode);
 		yuiha_set_tree_link_zero(yi);
 		yi->parent_inode = NULL;

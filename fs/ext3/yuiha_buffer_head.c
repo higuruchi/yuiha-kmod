@@ -50,47 +50,51 @@ static int __yuiha_block_prepare_write(
 
 	blocksize = 1 << inode->i_blkbits;
 	ext3_debug();
-	if (!page_has_buffers(page)) {
-		ext3_debug();
+	if (!page_has_buffers(page))
 		create_empty_buffers(page, blocksize, 0);
-	}
 	head = page_buffers(page);
+
 	ext3_debug();
 
 	bbits = inode->i_blkbits;
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 
 	// copy buffer_head structure to parent_inode cache.
-	if (parent_page && PageShared(page)) {
+	if (parent_page && PageShared(page) && PageUptodate(page)) {
+		// BUG_ON(!PageUptodate(page));
+
 		if (!page_has_buffers(parent_page))
 			create_empty_buffers(parent_page, blocksize, 0);
 
 		ext3_debug();
 		parent_head = page_buffers(parent_page);
 		ext3_debug();
+		
+		if (PageUptodate(page))
+			SetPageUptodate(parent_page);
+		if (PageDirty(page))
+			SetPageDirty(parent_page);
+
 		for (bh = head, parent_bh = parent_head, block_start = 0;
 					bh != head || parent_bh != parent_head || !block_start;
 					block++, block_start=block_end, bh = bh->b_this_page,
 					parent_bh = parent_bh->b_this_page) {
 
-			block_end = block_start + blocksize;
-			if (buffer_shared(bh)) {
-				ext3_debug("bh->b_state=%ld", bh->b_state);
-				parent_bh->b_blocknr = bh->b_blocknr;
-				parent_bh->b_bdev = bh->b_bdev;
-				parent_bh->b_size = bh->b_size;
-				memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
+			set_buffer_shared(bh);
 
-				clear_buffer_new(parent_bh);
-				set_buffer_uptodate(parent_bh);
+			block_end = block_start + blocksize;
+			ext3_debug("bh->b_state=%ld", bh->b_state);
+			parent_bh->b_blocknr = bh->b_blocknr;
+			parent_bh->b_bdev = bh->b_bdev;
+			parent_bh->b_size = bh->b_size;
+			memcpy(parent_bh->b_data, bh->b_data, parent_bh->b_size);
+
+			clear_buffer_new(parent_bh);
+			set_buffer_uptodate(parent_bh);
+			set_buffer_mapped(parent_bh);
+			if (buffer_dirty(bh))
 				mark_buffer_dirty(parent_bh);
-				set_buffer_mapped(parent_bh);
-				//clear_buffer_shared(parent_bh);
-			}
 		}
-		// TODO: need clearshared(page)?
-		// flush_dcache_page(parent_page);
-		// mark_page_accessed(parent_page);
 	}
 
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);

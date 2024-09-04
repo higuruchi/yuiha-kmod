@@ -463,9 +463,8 @@ static struct inode *ext3_alloc_inode(struct super_block *sb)
 {
 	struct ext3_inode_info *ei;
 	struct yuiha_inode_info *yi;
-	struct file_system_type *fs_type = sb->s_type;
 
-	if (ext3_judge_yuiha(fs_type)) {
+	if (ext3_judge_yuiha(sb)) {
 		yi = kmem_cache_alloc(yuiha_inode_cachep, GFP_NOFS);
 		if (!yi)
 				return NULL;
@@ -487,16 +486,14 @@ void yuiha_drop_inode(struct inode *inode)
 	struct inode *parent_inode = YUIHA_I(inode)->parent_inode;
 	struct super_block *sb = inode->i_sb;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
-	struct file_system_type *fs_type = sb->s_type;
-	int is_not_journal_file = es->s_journal_inum != inode->i_ino,
-			is_yuiha = ext3_judge_yuiha(fs_type);
+	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
 	ext3_debug("inode->i_ino=%d,inode->i_count=%d",
 						inode->i_ino, inode->i_count);
 	generic_drop_inode(inode);
 	ext3_debug("inode->i_ino=%d,inode->i_count=%d",
 						inode->i_ino, inode->i_count);
-	if (parent_inode && is_yuiha && S_ISREG(inode->i_mode)
+	if (parent_inode && ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode)
 					&& is_not_journal_file) {
 	
 		ext3_debug("parent_inode->i_ino=%d,parent_inode->i_count=%d",
@@ -510,8 +507,6 @@ void yuiha_drop_inode(struct inode *inode)
 
 static void ext3_destroy_inode(struct inode *inode)
 {
-	struct file_system_type *fs_type = inode->i_sb->s_type;
-
 	if (!list_empty(&(EXT3_I(inode)->i_orphan))) {
 		printk("EXT3 Inode %p: orphan list check failed!\n",
 			EXT3_I(inode));
@@ -521,7 +516,7 @@ static void ext3_destroy_inode(struct inode *inode)
 		dump_stack();
 	}
 
-	if (ext3_judge_yuiha(fs_type))
+	if (ext3_judge_yuiha(inode->i_sb))
 		kmem_cache_free(yuiha_inode_cachep, YUIHA_I(inode));
 	else
 		kmem_cache_free(ext3_inode_cachep, EXT3_I(inode));
@@ -2043,6 +2038,11 @@ static int ext3_fill_super (struct super_block *sb, void *data, int silent)
 		test_opt(sb,DATA_FLAGS) == EXT3_MOUNT_ORDERED_DATA ? "ordered":
 		"writeback");
 
+	if (strncmp(sb->s_type->name, "yuiha", strlen("yuiha")) == 0)
+		sbi->s_is_yuiha = 1;
+	else
+		sbi->s_is_yuiha = 0;
+
 	lock_kernel();
 	return 0;
 
@@ -2751,14 +2751,10 @@ static int ext3_statfs (struct dentry * dentry, struct kstatfs * buf)
 	return 0;
 }
 
-int ext3_judge_yuiha(struct file_system_type *type)
+int ext3_judge_yuiha(struct super_block *sb)
 {
-	char *yuiha_name = "yuiha";
-	unsigned yuiha_len = strlen(type->name), fs_len = strlen(type->name);
-
-	if (yuiha_len == fs_len && strncmp(type->name, yuiha_name, yuiha_len) == 0)
-			return 1;
-	return 0;
+	struct ext3_sb_info *sbi = (struct ext3_sb_info *) sb->s_fs_info;
+	return sbi->s_is_yuiha;
 }
 
 /* Helper function for writing quotas on sync - we need to start transaction before quota file
