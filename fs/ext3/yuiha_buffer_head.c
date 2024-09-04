@@ -60,7 +60,9 @@ static int __yuiha_block_prepare_write(
 	block = (sector_t)page->index << (PAGE_CACHE_SHIFT - bbits);
 
 	// copy buffer_head structure to parent_inode cache.
-	if (parent_page && PageShared(page)) {
+	if (parent_page && PageShared(page) && PageUptodate(page)) {
+		// BUG_ON(!PageUptodate(page));
+
 		if (!page_has_buffers(parent_page))
 			create_empty_buffers(parent_page, blocksize, 0);
 
@@ -77,6 +79,8 @@ static int __yuiha_block_prepare_write(
 					bh != head || parent_bh != parent_head || !block_start;
 					block++, block_start=block_end, bh = bh->b_this_page,
 					parent_bh = parent_bh->b_this_page) {
+
+			set_buffer_shared(bh);
 
 			block_end = block_start + blocksize;
 			ext3_debug("bh->b_state=%ld", bh->b_state);

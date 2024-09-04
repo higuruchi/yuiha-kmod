@@ -1077,7 +1077,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 				count = 0;
 				break;
 			}
-			blk = le32_to_cpu(*(chain[depth-1].p + count));
+			blk = le32_to_cpu(clear_producer_flg(*(chain[depth-1].p + count)));
 
 			if (blk == first_block + count)
 				count++;
@@ -1108,7 +1108,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	 * at this point, we will have the current copy of the chain when we
 	 * splice the branch into the tree.
 	 */
-	if (err == -EAGAIN || !verify_chain(chain, partial)) {
+	if (err == -EAGAIN || !yuiha_verify_chain(chain, partial)) {
 		while (partial > chain) {
 			brelse(partial->bh);
 			partial--;
