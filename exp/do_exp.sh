@@ -2,7 +2,7 @@
 
 FS=$1
 COUNT=${2:-100}
-DEV="/dev/sda"
+DEV="/dev/vdb"
 PART="${DEV}1"
 MOUNT_POINT="/home/${USER}/research"
 EXP_MOUNT_POINT="/home/${USER}/exp_mnt"
@@ -22,8 +22,8 @@ IO_PATTERN_DIR_PATH="${YUIHA_KMOD_PATH}/exp"
 REL_LOG_FILE_PATH="research/yuiha-kmod/exp/exp_data/${exp_date}_${FS}"
 
 mode=(
-	seq
-	# append
+	#seq
+	append
 )
 
 append_size=(
@@ -35,9 +35,9 @@ append_size=(
 
 seq_size=(
 	500k
-	# 1000k
-	# 2000k
-	# 4000k
+	1000k
+	2000k
+	4000k
 )
 
 vmemu_size=(
@@ -46,9 +46,9 @@ vmemu_size=(
 )
 
 ss_span=(
-	# 1
-	# 2
-	# 4
+	1
+	2
+	4
 	200
 )
 
