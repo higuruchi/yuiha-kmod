@@ -2025,7 +2025,6 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode,
 	handle_t *handle;
 	struct inode * inode;
 	int err, retries = 0;
-	struct file_system_type *fs_type = dir->i_sb->s_type;
 	unsigned long hash = dentry->d_name.hash;
 	struct yuiha_inode_info *yi;
 	ext3_debug("");
@@ -2043,7 +2042,7 @@ retry:
 	inode = ext3_new_inode (handle, dir, mode);
 	err = PTR_ERR(inode);
 	if (!IS_ERR(inode)) {
-		if (S_ISREG(inode->i_mode) && ext3_judge_yuiha(fs_type)) {
+		if (S_ISREG(inode->i_mode) && ext3_judge_yuiha(dir->i_sb)) {
 			yi = YUIHA_I(inode);
 			yuiha_sibling_link_self(handle, yi);
 
@@ -2053,7 +2052,7 @@ retry:
 			d_splice_alias(NULL, dentry);
 		}
 		inode->i_op = &ext3_file_inode_operations;
-		if (ext3_judge_yuiha(fs_type))
+		if (ext3_judge_yuiha(dir->i_sb))
 			inode->i_fop = &yuiha_file_operations;
 		else {
 			inode->i_fop = &ext3_file_operations;

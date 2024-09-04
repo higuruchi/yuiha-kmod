@@ -691,8 +691,7 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 	struct super_block *sb = inode->i_sb;
 	struct file_system_type *fs_type = sb->s_type;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
-	int is_yuiha = ext3_judge_yuiha(fs_type),
-			is_not_journal_file = es->s_journal_inum != inode->i_ino;
+	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
 	num = ext3_alloc_blocks(handle, inode, goal, indirect_blks,
 				*blks, new_blocks, &err);
@@ -724,7 +723,7 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 		branch[n].p = (__le32 *) bh->b_data + offsets[n];
 		branch[n].key = cpu_to_le32(new_blocks[n]);
 		*branch[n].p = branch[n].key;
-		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
+		if (ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			//*branch[n].p = cpu_to_le32(set_producer_flg(new_blocks[n]));
 			*branch[n].p = cpu_to_le32(set_producer_flg(le32_to_cpu(*branch[n].p)));
 		}
@@ -787,10 +786,8 @@ static int ext3_splice_branch(handle_t *handle, struct inode *inode,
 	ext3_fsblk_t current_block;
 	struct ext3_inode_info *ei = EXT3_I(inode);
 	struct super_block *sb = inode->i_sb;
-	struct file_system_type *fs_type = sb->s_type;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
-	int is_yuiha = ext3_judge_yuiha(fs_type),
-			is_not_journal_file = es->s_journal_inum != inode->i_ino;
+	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
 	block_i = ei->i_block_alloc_info;
 	/*
@@ -806,7 +803,7 @@ static int ext3_splice_branch(handle_t *handle, struct inode *inode,
 	}
 	/* That's it */
 
-	if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file)
+	if (ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode) && is_not_journal_file)
 		*where->p = cpu_to_le32(set_producer_flg(le32_to_cpu(where->key)));
 	else
 		*where->p = where->key;
@@ -818,7 +815,7 @@ static int ext3_splice_branch(handle_t *handle, struct inode *inode,
 	if (num == 0 && blks > 1) {
 		current_block = le32_to_cpu(where->key) + 1;
 		for (i = 1; i < blks; i++) {
-			if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file)
+			if (ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode) && is_not_journal_file)
 				*(where->p + i ) = cpu_to_le32(set_producer_flg(current_block));
 			else
 				*(where->p + i ) = cpu_to_le32(current_block);
@@ -1023,8 +1020,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	struct super_block *sb = inode->i_sb;
 	struct file_system_type *fs_type = sb->s_type;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
-	int is_yuiha = ext3_judge_yuiha(fs_type),
-			is_not_journal_file = es->s_journal_inum != inode->i_ino;
+	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
 	J_ASSERT(handle != NULL || create == 0);
 	depth = ext3_block_to_path(inode,iblock,offsets,&blocks_to_boundary);
@@ -1032,7 +1028,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	if (depth == 0)
 		goto out;
 
-	if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file) {
+	if (ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode) && is_not_journal_file) {
 		partial = yuiha_get_branch(inode, depth, offsets, chain, &err);
 	} else {
 		partial = ext3_get_branch(inode, depth, offsets, chain, &err);
@@ -1043,7 +1039,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	/* Simplest case - block found, no allocation needed */
 	if (!partial) {
 		ext3_debug("");
-		if (is_yuiha && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
+		if (ext3_judge_yuiha(sb) && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			mutex_lock(&ei->truncate_mutex);
 			ext3_debug("");
 			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
@@ -1051,7 +1047,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 			mutex_unlock(&ei->truncate_mutex);
 		}
 
-		if (is_yuiha && !create && S_ISREG(inode->i_mode) && is_not_journal_file) {
+		if (ext3_judge_yuiha(sb) && !create && S_ISREG(inode->i_mode) && is_not_journal_file) {
 			if (!test_producer_flg(*chain[depth - 1].p)) {
 				SetPageShared(bh_result->b_page);
 				ext3_debug();
@@ -1114,7 +1110,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 			partial--;
 		}
 
-		if (is_yuiha && S_ISREG(inode->i_mode) && is_not_journal_file)
+		if (ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode) && is_not_journal_file)
 			partial = yuiha_get_branch(inode, depth, offsets, chain, &err);
 		else
 			partial = ext3_get_branch(inode, depth, offsets, chain, &err);
@@ -1404,8 +1400,6 @@ static int ext3_write_begin(struct file *file, struct address_space *mapping,
 	pgoff_t index;
 	unsigned from, to;
 	struct super_block *sb = inode->i_sb;
-	struct file_system_type *fs_type = sb->s_type;
-	int is_yuiha = ext3_judge_yuiha(fs_type);
 	/* Reserve one block more for addition to orphan list in case
 	 * we allocate blocks but write fails for some reason */
 	int needed_blocks = ext3_writepage_trans_blocks(inode) + 1;
@@ -1428,7 +1422,7 @@ retry:
 		goto out;
 	}
 	
-	if (is_yuiha) {
+	if (ext3_judge_yuiha(sb)) {
 		ret = yuiha_block_write_begin(file, mapping, pos, len, flags,
 						pagep, fsdata, ext3_get_block);
 	} else {
@@ -3051,7 +3045,6 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 	transaction_t *transaction;
 	long ret;
 	int block;
-	struct file_system_type *fs_type = sb->s_type;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_not_journal_file;
 
@@ -3062,7 +3055,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 		return inode;
 
 	is_not_journal_file = es->s_journal_inum != inode->i_ino;
-	if (ext3_judge_yuiha(fs_type)) {
+	if (ext3_judge_yuiha(sb)) {
 		yi = YUIHA_I(inode);
 		ei = &yi->i_ext3;
 		yi->parent_inode = NULL;
@@ -3194,7 +3187,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 		ei->i_extra_isize = 0;
 
 	if (S_ISREG(inode->i_mode)) {
-		if (ext3_judge_yuiha(fs_type)) {
+		if (ext3_judge_yuiha(sb)) {
 			inode->i_fop = &yuiha_file_operations;
 
 			yi->i_parent_ino = le32_to_cpu(yuiha_raw_inode->i_parent_ino);
@@ -3264,10 +3257,9 @@ static int ext3_do_update_inode(handle_t *handle,
 	struct ext3_inode_info *ei = NULL;
 	struct yuiha_inode_info *yi = NULL;
 	struct buffer_head *bh = iloc->bh;
-	struct file_system_type *fs_type = inode->i_sb->s_type;
 	int err = 0, rc, block;
 
-	if (ext3_judge_yuiha(fs_type)) {
+	if (ext3_judge_yuiha(inode->i_sb)) {
 		yi = YUIHA_I(inode);
 		ei = &yi->i_ext3;
 	} else {
