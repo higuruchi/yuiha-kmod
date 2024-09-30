@@ -2392,6 +2392,13 @@ struct dentry * yuiha_create_snapshot(
 
 	return new_version;
 }
+
+int yuiha_delete_version(struct file *filp)
+{
+	ext3_debug("ext3_ioctl YUIHA_IOC_DEL_VERSION");
+	return 0;
+}
+
 static int ext3_mkdir(struct inode * dir, struct dentry * dentry, int mode)
 {
 	handle_t *handle;

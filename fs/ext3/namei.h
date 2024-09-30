@@ -10,6 +10,7 @@ extern struct dentry * yuiha_create_snapshot(
 				struct dentry *parent,
 				struct inode *new_version_target_i,
 				struct dentry *lookup_dentry);
+extern int yuiha_delete_version(struct file *filp);
 
 //extern int yuiha_create_snapshot(struct file *file);
 
