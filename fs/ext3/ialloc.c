@@ -462,6 +462,8 @@ struct inode *ext3_new_inode(handle_t *handle, struct inode * dir, int mode)
 		yi = YUIHA_I(inode);
 		yuiha_set_tree_link_zero(yi);
 		yi->parent_inode = NULL;
+		if (S_ISREG(mode))
+			yi->i_vtree_link_count = 1;
 		ei = &yi->i_ext3;
 	} else {
 		ei = EXT3_I(inode);

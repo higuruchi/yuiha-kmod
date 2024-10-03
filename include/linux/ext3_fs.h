@@ -174,6 +174,7 @@ struct ext3_group_desc
 #define EXT3_NOTAIL_FL			0x00008000 /* file tail should not be merged */
 #define EXT3_DIRSYNC_FL			0x00010000 /* dirsync behaviour (directories only) */
 #define EXT3_TOPDIR_FL			0x00020000 /* Top of directory hierarchies*/
+#define YUIHA_PHANTOM_FS		0x00100000 /* Phantom version */
 #define EXT3_RESERVED_FL		0x80000000 /* reserved for ext3 lib */
 
 #define EXT3_FL_USER_VISIBLE		0x0003DFFF /* User visible flags */
@@ -359,6 +360,9 @@ struct yuiha_inode {
 
 	__le32 i_child_ino;
 	__le32 i_child_generation;
+
+	// This member only used at root version
+	__le16 i_vtree_link_count;
 };
 
 #define i_size_high	i_dir_acl
