@@ -362,7 +362,7 @@ struct yuiha_inode {
 	__le32 i_child_generation;
 
 	// This member only used at root version
-	__le16 i_vtree_link_count;
+	__le16 i_vtree_nlink;
 };
 
 #define i_size_high	i_dir_acl
