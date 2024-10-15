@@ -279,8 +279,24 @@ group_add_out:
 		return err;
 	}
 	case YUIHA_IOC_DEL_VERSION: {
+		handle_t *handle = NULL;
 		int err = 0;
-		err = yuiha_delete_version(filp);
+
+		mutex_lock(&inode->i_mutex);
+		err = mnt_want_write(filp->f_path.mnt);
+		if (err)
+			return err;
+
+		handle = ext3_journal_start(inode, EXT3_DELETE_TRANS_BLOCKS(inode->i_sb));
+		if (IS_ERR(handle))
+			return PTR_ERR(handle);
+
+		err = yuiha_delete_version(handle, filp, arg);
+
+		ext3_journal_stop(handle);
+		mutex_unlock(&inode->i_mutex);
+		mnt_drop_write(filp->f_path.mnt);
+
 		return err;
 	}
 

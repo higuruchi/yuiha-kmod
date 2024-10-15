@@ -39,6 +39,7 @@
 #include <linux/pagevec.h>
 #include <linux/namei.h>
 #include <linux/dcache.h>
+#include <linux/mount.h>
 
 #include "namei.h"
 #include "xattr.h"
@@ -1066,6 +1067,7 @@ static struct dentry *ext3_lookup(struct inode * dir,
 		inode = ilookup(dir->i_sb, ino);
 		if (!inode)
 			inode = ext3_iget(dir->i_sb, ino);
+		//dentry->d_op = &dentry_operations;
 
 		if (S_ISREG(inode->i_mode)) {
 			yi = YUIHA_I(inode);
@@ -1867,9 +1869,7 @@ yuiha_insert_to_sibling(
 	struct yuiha_inode_info *next;
 	struct super_block *sb = head_inode->i_sb;
 
-	next_inode = ilookup(sb, head->i_sibling_next_ino);
-	if (!next_inode)
-		next_inode = ext3_iget(sb, head->i_sibling_next_ino);
+	next_inode = yuiha_ilookup(sb, head->i_sibling_next_ino);
 	next = YUIHA_I(next_inode);
 
 	new->i_sibling_prev_ino = head_inode->i_ino;
@@ -1934,16 +1934,12 @@ yuiha_remove_from_sibling(
 	if (yuiha_test_sibling_link_self(removal))
 		return;
 
-	prev_inode = ilookup(sb, removal->i_sibling_prev_ino);
-	if (!prev_inode)
-		prev_inode = ext3_iget(sb, removal->i_sibling_prev_ino);
+	prev_inode = yuiha_ilookup(sb, removal->i_sibling_prev_ino);
 	prev = YUIHA_I(prev_inode);
 
-	next_inode = ilookup(sb, removal->i_sibling_next_ino);
-	if (!next_inode)
-		next_inode = ext3_iget(sb, removal->i_sibling_next_ino);
+	next_inode = yuiha_ilookup(sb, removal->i_sibling_next_ino);
 	next = YUIHA_I(next_inode);
-	
+
 	prev->i_sibling_next_ino = removal->i_sibling_next_ino;
 	prev->i_sibling_next_generation = removal->i_sibling_next_generation;
 
@@ -2063,6 +2059,7 @@ retry:
 			inode->i_fop = &yuiha_file_operations;
 		else {
 			inode->i_fop = &ext3_file_operations;
+			//dentry->d_op = &dentry_operations;
 		}
 		ext3_set_aops(inode);
 		err = ext3_add_nondir(handle, dentry, inode);
@@ -2160,7 +2157,7 @@ static void yuiha_clear_producer_flg(struct inode *version_i)
 	}
 }
 
-static struct inode *yuiha_ilookup(struct super_block *sb, unsigned long ino)
+struct inode *yuiha_ilookup(struct super_block *sb, unsigned long ino)
 {
 	struct inode *inode = ilookup(sb, ino);
 	if (!inode)
@@ -2198,10 +2195,6 @@ yuiha_add_version_to_tree(
 				yuiha_ilookup(sb, target_version_yi->i_sibling_prev_ino);
 			prev_target_version_yi = YUIHA_I(prev_target_version_inode);
 
-			drop_nlink(target_version_inode);
-			if (!yuiha_test_sibling_link_same(target_version_yi))
-				drop_nlink(target_version_inode);
-
 			yuiha_remove_from_sibling(handle, target_version_yi);
 			yuiha_insert_to_sibling(handle, prev_target_version_yi, new_version_yi);
 		}
@@ -2212,8 +2205,6 @@ yuiha_add_version_to_tree(
 
 		if (parent_inode)
 			parent_yi->i_child_ino = new_version_inode->i_ino;
-		else
-			inc_nlink(target_version_inode);
 
 		if (prev_target_version_inode)
 			iput(prev_target_version_inode);
@@ -2229,22 +2220,11 @@ yuiha_add_version_to_tree(
 			yuiha_ilookup(sb, target_version_yi->i_sibling_prev_ino);
 		prev_target_version_yi = YUIHA_I(prev_target_version_inode);
 
-		if (yuiha_test_sibling_link_self(child_version_yi))
-			inc_nlink(child_version_inode);
-
-		target_version_inode->i_nlink = 1;
 		if (yuiha_test_sibling_link_same(child_version_yi)) {
-			inc_nlink(child_version_inode);
-			inc_nlink(target_version_inode);
 
-			child_version_prev_inode = ilookup(sb,
-					child_version_yi->i_sibling_prev_ino);
-			if (!child_version_prev_inode)
-				child_version_prev_inode =
-					ext3_iget(sb, child_version_yi->i_sibling_prev_ino);
+			child_version_prev_inode =
+				yuiha_ilookup(sb, child_version_yi->i_sibling_prev_ino);
 			child_version_prev_yi = YUIHA_I(child_version_prev_inode);
-
-			inc_nlink(child_version_prev_inode);
 
 			if (child_version_prev_inode)
 				iput(child_version_prev_inode);
@@ -2377,6 +2357,7 @@ struct dentry * __yuiha_create_snapshot(
 		new_version_yi = YUIHA_I(new_version_i);
 
 		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
+		new_version_i->i_nlink = 1;
 		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
 		yuiha_buffer_head_shared(new_version_target_i);
 		yuiha_clear_producer_flg(new_version_target_i);
@@ -2430,14 +2411,6 @@ int yuiha_count_dentry_link(struct inode *inode)
 	struct yuiha_inode_info *yi = YUIHA_I(inode);
 	int link_count = inode->i_nlink;
 
-	if (yi->i_parent_ino)
-		link_count--;
-	if (yuiha_test_sibling_link_same(yi))
-		link_count--;
-	if (yi->i_sibling_next_ino != yi->i_sibling_prev_ino)
-		link_count -= 2;
-	if (yi->i_child_ino)
-		link_count--;
 	return link_count;
 }
 
@@ -2578,27 +2551,64 @@ out:
 	return error;
 }
 
-int yuiha_delete_version(struct file *filp)
+void yuiha_detatch_parent(struct inode *deleted_inode)
+{
+	struct yuiha_inode_info *yi = YUIHA_I(deleted_inode), *sibling_yi;
+	struct inode *sibling;
+	struct super_block *sb = deleted_inode->i_sb;
+	__u32 sibling_ino;
+
+	if (!yi->i_child_ino)
+		return;
+
+	sibling_ino = yi->i_child_ino;
+	do {
+		sibling = yuiha_ilookup(sb, sibling_ino);
+		sibling_yi = YUIHA_I(sibling);
+
+		if (sibling_yi->parent_inode) {
+			//mutex_lock(&sibling->i_mutex);
+			sibling_yi->parent_inode = NULL;
+			//mutex_unlock(&sibling->i_mutex);
+
+			sibling_ino = sibling_yi->i_sibling_next_ino;
+			iput(deleted_inode);
+		}
+		iput(sibling);
+	} while (sibling_ino != yi->i_child_ino);
+
+	return;
+}
+
+int yuiha_delete_version(handle_t *handle,
+		struct file *filp, unsigned long vno)
 {
 	ext3_debug("ext3_ioctl YUIHA_IOC_DEL_VERSION");
 	struct inode *dir = filp->f_dentry->d_parent->d_inode,
-							 *deleted_inode = filp->f_dentry->d_inode,
+							 *deleted_inode,
 							 *root_version_inode;
-	struct yuiha_inode_info *yi = YUIHA_I(deleted_inode);
+	struct yuiha_inode_info *yi;
 	struct buffer_head *bh;
 	struct ext3_dir_entry_2 *de;
+	struct super_block *sb = dir->i_sb;
 	unsigned long deleted_version_ino = filp->f_dentry->d_inode->i_ino;
 	int retval, vtree_nlink;
-	handle_t *handle;
 
-	handle = ext3_journal_start(dir, EXT3_DELETE_TRANS_BLOCKS(dir->i_sb));
+	struct ext3_iloc iloc;
+
+	if (IS_DIRSYNC(dir))
+		handle->h_sync = 1;
 
 	retval = -ENOENT;
 	bh = ext3_find_entry(dir, &filp->f_dentry->d_name, &de);
 	if (!bh)
 		goto end_delete_version;
 
-	mutex_lock(&deleted_inode->i_mutex);
+	deleted_inode = filp->f_dentry->d_inode;
+	ext3_reserve_inode_write(handle, deleted_inode, &iloc);
+
+	yuiha_detatch_parent(deleted_inode);
+	drop_nlink(deleted_inode);
 
 	if (le32_to_cpu(de->inode) == deleted_version_ino) {
 		retval = ext3_delete_entry(handle, dir, de, bh);
@@ -2609,6 +2619,7 @@ int yuiha_delete_version(struct file *filp)
 		ext3_mark_inode_dirty(handle, dir);
 
 		drop_nlink(deleted_inode);
+
 		root_version_inode = yuiha_trace_root(deleted_inode);
 		vtree_nlink = yuiha_drop_vtree_nlink(root_version_inode);
 		if (!vtree_nlink) {
@@ -2619,18 +2630,15 @@ int yuiha_delete_version(struct file *filp)
 
 	deleted_inode->i_ctime = CURRENT_TIME_SEC;
 	if (!yuiha_count_dentry_link(deleted_inode)) {
-		//ext3_orphan_add(handle, deleted_inode);
-		yuiha_detach_version(handle, deleted_inode);
-		// deleted_inode->i_nlink = 0;
+		ext3_orphan_add(handle, deleted_inode);
+		// yuiha_detach_version(handle, deleted_inode);
 		yi->i_ext3.i_flags |= YUIHA_PHANTOM_FS;
 	}
 
-	ext3_mark_inode_dirty(handle, deleted_inode);
-	mutex_unlock(&deleted_inode->i_mutex);
+	ext3_mark_iloc_dirty(handle, deleted_inode, &iloc);
 	retval = 0;
 
 end_delete_version:
-	ext3_journal_stop(handle);
 	brelse(bh);
 	return retval;
 }

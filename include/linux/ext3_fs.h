@@ -252,7 +252,7 @@ struct ext3_new_group_data {
 #endif
 #define EXT3_IOC_GETRSVSZ		_IOR('f', 5, long)
 #define EXT3_IOC_SETRSVSZ		_IOW('f', 6, long)
-#define YUIHA_IOC_DEL_VERSION		_IO('f', 9)
+#define YUIHA_IOC_DEL_VERSION		_IOWR('f', 9, unsigned long)
 
 /*
  * ioctl commands in 32 bit emulation

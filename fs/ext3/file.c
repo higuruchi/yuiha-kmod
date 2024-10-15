@@ -164,6 +164,19 @@ out:
 	return ret;
 }
 
+static void yuiha_iput(struct dentry *dentry, struct inode *inode)
+{
+	struct yuiha_inode_info *yi = YUIHA_I(inode);
+	struct inode *parent_inode;
+
+	if (yi->parent_inode) {
+		iput(yi->parent_inode);
+		if (atomic_read(&inode->i_count) == 1)
+			yi->parent_inode = NULL;
+	}
+	iput(inode);
+}
+
 const struct file_operations ext3_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= do_sync_read,
@@ -214,3 +227,6 @@ const struct inode_operations ext3_file_inode_operations = {
 	.fiemap		= ext3_fiemap,
 };
 
+//const struct dentry_operations {
+//	.d_iput = yuiha_iput,
+//};
