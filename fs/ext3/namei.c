@@ -2406,14 +2406,6 @@ struct dentry * yuiha_create_snapshot(
 	return new_version;
 }
 
-int yuiha_count_dentry_link(struct inode *inode)
-{
-	struct yuiha_inode_info *yi = YUIHA_I(inode);
-	int link_count = inode->i_nlink;
-
-	return link_count;
-}
-
 struct inode *yuiha_trace_root(struct inode *inode)
 {
 	struct yuiha_inode_info *yi = YUIHA_I(inode);
@@ -2460,7 +2452,6 @@ int yuiha_detach_version(handle_t *handle, struct inode *inode)
 	if (yi->i_child_ino) {
 		child_inode = yuiha_ilookup(inode->i_sb, yi->i_child_ino);
 		child_yi = YUIHA_I(child_inode);
-		mutex_lock(&child_inode->i_mutex);
 	}
 
 	// if deleted version has sibling versions
@@ -2540,7 +2531,6 @@ int yuiha_detach_version(handle_t *handle, struct inode *inode)
 out:
 	if (child_inode) {
 		ext3_mark_inode_dirty(handle, child_inode);
-		mutex_unlock(&child_inode->i_mutex);
 		iput(child_inode);
 	}
 	if (parent_inode) {
@@ -2629,9 +2619,8 @@ int yuiha_delete_version(handle_t *handle,
 	}
 
 	deleted_inode->i_ctime = CURRENT_TIME_SEC;
-	if (!yuiha_count_dentry_link(deleted_inode)) {
+	if (!deleted_inode->i_nlink) {
 		ext3_orphan_add(handle, deleted_inode);
-		// yuiha_detach_version(handle, deleted_inode);
 		yi->i_ext3.i_flags |= YUIHA_PHANTOM_FS;
 	}
 

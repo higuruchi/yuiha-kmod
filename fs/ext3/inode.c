@@ -2497,6 +2497,7 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 							free_flg = 1;
 					} else {
 						// phantom
+						sdb->phantom = 1;
 						if (count)
 							shared_boundary = free_flg ? 1 : 0;
 						else
@@ -2922,10 +2923,10 @@ do_indirects:
 				sdb.first[i] = &sibling_i_data[EXT3_DIND_BLOCK];
 				sdb.last[i] = &sibling_i_data[EXT3_DIND_BLOCK + 1];
 			}
-		}
-		if (nr) {
-			ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 2, &sdb);
-			i_data[EXT3_DIND_BLOCK] = 0;
+			if (nr) {
+				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 2, &sdb);
+				i_data[EXT3_DIND_BLOCK] = 0;
+			}
 		}
 	case EXT3_DIND_BLOCK:
 		nr = i_data[EXT3_TIND_BLOCK];
@@ -2937,10 +2938,10 @@ do_indirects:
 				sdb.first[i] = &sibling_i_data[EXT3_TIND_BLOCK];
 				sdb.last[i] = &sibling_i_data[EXT3_TIND_BLOCK + 1];
 			}
-		}
-		if (nr) {
-			ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 3, &sdb);
-			i_data[EXT3_TIND_BLOCK] = 0;
+			if (nr) {
+				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 3, &sdb);
+				i_data[EXT3_TIND_BLOCK] = 0;
+			}
 		}
 	case EXT3_TIND_BLOCK:
 		;
@@ -2950,6 +2951,9 @@ do_indirects:
 
 	mutex_unlock(&ei->truncate_mutex);
 	inode->i_mtime = inode->i_ctime = CURRENT_TIME_SEC;
+
+	if (!sdb.phantom)
+		yuiha_detach_version(handle, inode);
 	ext3_mark_inode_dirty(handle, inode);
 
 	/*
