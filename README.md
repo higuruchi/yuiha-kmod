@@ -169,9 +169,9 @@ $ yutil cat -o --path=yuiha_mnt/hoge
 fugafuga
 ```
 
-`yuiha_util` command command repository is https://github.com/higuruchi/yutil
+`yuitil` command command repository is https://github.com/higuruchi/yutil
 
-### Cheik if backingstore state is correct
+### Check if backingstore state is correct
 
 Block number and i-node number change depending on execution time
 
