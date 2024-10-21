@@ -42,8 +42,15 @@
 #include "acl.h"
 #include "super.h"
 #include "yuiha_buffer_head.h"
+#include "namei.h"
 
 #include <linux/journal-head.h>
+
+struct sibling_datablock {
+	int count;
+	int phantom;
+	__le32 *first[10], *last[10];
+};
 
 static int ext3_writepage_trans_blocks(struct inode *inode);
 
@@ -2424,8 +2431,8 @@ static void ext3_clear_blocks(handle_t *handle, struct inode *inode,
  * block pointers.
  */
 static void ext3_free_data(handle_t *handle, struct inode *inode,
-				 struct buffer_head *this_bh,
-				 __le32 *first, __le32 *last)
+				 struct buffer_head *this_bh, __le32 *first, __le32 *last,
+				 struct sibling_datablock *sdb)
 {
 	ext3_fsblk_t block_to_free = 0;    /* Starting block # of a run */
 	unsigned long count = 0;	    /* Number of blocks in the run */
@@ -2435,7 +2442,7 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 	ext3_fsblk_t nr;		    /* Current block # */
 	__le32 *p;			    /* Pointer into inode/ind
 								 for current block */
-	int err;
+	int err, shared_boundary = 0, free_flg = 0;
 
 	if (this_bh) {				/* For indirect block */
 		BUFFER_TRACE(this_bh, "get_write_access");
@@ -2447,19 +2454,79 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 	}
 
 	for (p = first; p < last; p++) {
-		nr = le32_to_cpu(*p);
+		nr = clear_producer_flg(le32_to_cpu(*p));
+
+		if (nr && sdb) {
+			int i, offset = p - first, sibling_shared_count = 0;
+			__le32 *offset_p, *first_shared, sibling_nr;
+
+			// if the producer flag is down
+			if (test_producer_flg(le32_to_cpu(*p))) {
+				if (sdb->count == 1) {
+					if (!test_producer_flg(le32_to_cpu(*(sdb->first[0] + offset)))) {
+						// push a producer flg
+						*(sdb->first[0] + offset) = *p;
+						if (count)
+							shared_boundary = free_flg ? 1 : 0;
+						else
+							free_flg = 0;
+					} else {
+						// release a data block
+						if (count)
+							shared_boundary = free_flg ? 0 : 1;
+						else
+							free_flg = 1;
+					}
+				}
+
+				if (sdb->count > 1) {
+					for (i = 0; i < sdb->count; i++) {
+						offset_p = sdb->first[i] + offset;
+						sibling_nr = clear_producer_flg(le32_to_cpu(*offset_p));
+						if (nr == sibling_nr) {
+							//first_shared = sdb->first[i] + offset;
+							sibling_shared_count++;
+						}
+					}
+
+					if (!sibling_shared_count) {
+						// release data block
+						if (count)
+							shared_boundary = free_flg ? 0 : 1;
+						else
+							free_flg = 1;
+					} else {
+						// phantom
+						sdb->phantom = 1;
+						if (count)
+							shared_boundary = free_flg ? 1 : 0;
+						else
+							free_flg = 0;
+					}
+				}
+			} else {
+				if (count)
+					shared_boundary = free_flg ? 1 : 0;
+				else
+					free_flg = 0;
+			}
+		}
+
 		if (nr) {
 			/* accumulate blocks to free if they're contiguous */
 			if (count == 0) {
 				block_to_free = nr;
 				block_to_free_p = p;
 				count = 1;
-			} else if (nr == block_to_free + count) {
+			} else if (nr == block_to_free + count && !shared_boundary) {
 				count++;
 			} else {
-				ext3_clear_blocks(handle, inode, this_bh,
-							block_to_free,
-							count, block_to_free_p, p);
+				if (free_flg)
+					ext3_clear_blocks(handle, inode, this_bh,
+								block_to_free,
+								count, block_to_free_p, p);
+
+				free_flg = !free_flg;
 				block_to_free = nr;
 				block_to_free_p = p;
 				count = 1;
@@ -2467,7 +2534,7 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 		}
 	}
 
-	if (count > 0)
+	if (count > 0 && free_flg)
 		ext3_clear_blocks(handle, inode, this_bh, block_to_free,
 					count, block_to_free_p, p);
 
@@ -2506,20 +2573,36 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
  */
 static void ext3_free_branches(handle_t *handle, struct inode *inode,
 						 struct buffer_head *parent_bh,
-						 __le32 *first, __le32 *last, int depth)
+						 __le32 *first, __le32 *last, int depth,
+						 struct sibling_datablock *sdb)
 {
 	ext3_fsblk_t nr;
 	__le32 *p;
+	int i;
 
 	if (is_handle_aborted(handle))
 		return;
 
+	// forst of producer flag is unset 
 	if (depth--) {
-		struct buffer_head *bh;
+		struct buffer_head *bh, *sibling_bh[10];
 		int addr_per_block = EXT3_ADDR_PER_BLOCK(inode->i_sb);
 		p = last;
 		while (--p >= first) {
-			nr = le32_to_cpu(*p);
+			if (!test_producer_flg(le32_to_cpu(*p)))
+				continue;
+
+			if (sdb && sdb->count == 1) {
+				int offset = last - p;
+				__le32 *offset_p = sdb->last[0] - offset;
+
+				if (!test_producer_flg(le32_to_cpu(*offset_p))) {
+					*offset_p = *p;
+					continue;
+				}
+			}
+
+			nr = clear_producer_flg(le32_to_cpu(*p));
 			if (!nr)
 				continue;		/* A hole */
 
@@ -2537,12 +2620,25 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 				continue;
 			}
 
+			struct sibling_datablock next_sdb = {
+				.count = sdb->count,
+			};
+			for (i = 0; i < sdb->count; i++) {
+				sibling_bh[i] = sb_bread(inode->i_sb, sdb->first[i]);
+				next_sdb.first[i] = (__le32 *)sibling_bh[i]->b_data;
+				next_sdb.last[i] = (__le32 *)sibling_bh[i]->b_data + addr_per_block;
+			}
+
 			/* This zaps the entire block.  Bottom up. */
 			BUFFER_TRACE(bh, "free child branches");
 			ext3_free_branches(handle, inode, bh,
 						 (__le32*)bh->b_data,
 						 (__le32*)bh->b_data + addr_per_block,
-						 depth);
+						 depth, &next_sdb);
+			sdb->phantom = next_sdb.phantom;
+			if (!sdb->phantom) {
+
+			}
 
 			/*
 			 * We've probably journalled the indirect block several
@@ -2588,6 +2684,7 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 				truncate_restart_transaction(handle, inode);
 			}
 
+
 			ext3_free_blocks(handle, inode, nr, 1);
 
 			if (parent_bh) {
@@ -2609,7 +2706,7 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 	} else {
 		/* We have reached the bottom of the tree. */
 		BUFFER_TRACE(parent_bh, "free data blocks");
-		ext3_free_data(handle, inode, parent_bh, first, last);
+		ext3_free_data(handle, inode, parent_bh, first, last, sdb);
 	}
 }
 
@@ -2665,7 +2762,7 @@ void ext3_truncate(struct inode *inode)
 	Indirect chain[4];
 	Indirect *partial;
 	__le32 nr = 0;
-	int n;
+	int n, i;
 	long last_block;
 	unsigned blocksize = inode->i_sb->s_blocksize;
 	struct page *page;
@@ -2738,9 +2835,34 @@ void ext3_truncate(struct inode *inode)
 	 */
 	mutex_lock(&ei->truncate_mutex);
 
+	//tmp
+	struct yuiha_inode_info *yi = YUIHA_I(inode), *sibling_yi;
+	struct inode *siblings[10];
+	struct sibling_datablock sdb = {.count = 0, .phantom = 0};
+	__le32 *sibling_i_data;
+
+	if (yi->i_child_ino) {
+		int sibling_ino = yi->i_child_ino;
+
+		do {
+			siblings[sdb.count] = yuiha_ilookup(inode->i_sb, sibling_ino);
+			sibling_yi = YUIHA_I(siblings[sdb.count]);
+			sibling_ino = sibling_yi->i_sibling_next_ino;
+			mutex_lock(&siblings[sdb.count]->i_mutex);
+			sdb.count++;
+		} while (sibling_ino != yi->i_child_ino);
+	}
+
 	if (n == 1) {		/* direct blocks */
+		for (i = 0; i < sdb.count; i++) {
+			sibling_yi = YUIHA_I(siblings[i]);
+			sibling_i_data = sibling_yi->i_ext3.i_data;
+
+			sdb.first[i] = sibling_i_data + offsets[0];
+			sdb.last[i] = sibling_i_data + EXT3_NDIR_BLOCKS;
+		}
 		ext3_free_data(handle, inode, NULL, i_data+offsets[0],
-						 i_data + EXT3_NDIR_BLOCKS);
+						 i_data + EXT3_NDIR_BLOCKS, &sdb);
 		goto do_indirects;
 	}
 
@@ -2750,7 +2872,7 @@ void ext3_truncate(struct inode *inode)
 		if (partial == chain) {
 			/* Shared branch grows from the inode */
 			ext3_free_branches(handle, inode, NULL,
-						 &nr, &nr+1, (chain+n-1) - partial);
+						 &nr, &nr+1, (chain+n-1) - partial, &sdb);
 			*partial->p = 0;
 			/*
 			 * We mark the inode dirty prior to restart,
@@ -2761,14 +2883,14 @@ void ext3_truncate(struct inode *inode)
 			BUFFER_TRACE(partial->bh, "get_write_access");
 			ext3_free_branches(handle, inode, partial->bh,
 					partial->p,
-					partial->p+1, (chain+n-1) - partial);
+					partial->p+1, (chain+n-1) - partial, &sdb);
 		}
 	}
 	/* Clear the ends of indirect blocks on the shared branch */
 	while (partial > chain) {
 		ext3_free_branches(handle, inode, partial->bh, partial->p + 1,
 					 (__le32*)partial->bh->b_data+addr_per_block,
-					 (chain+n-1) - partial);
+					 (chain+n-1) - partial, &sdb);
 		BUFFER_TRACE(partial->bh, "call brelse");
 		brelse (partial->bh);
 		partial--;
@@ -2778,21 +2900,48 @@ do_indirects:
 	switch (offsets[0]) {
 	default:
 		nr = i_data[EXT3_IND_BLOCK];
-		if (nr) {
-			ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 1);
-			i_data[EXT3_IND_BLOCK] = 0;
+		if (test_producer_flg(le32_to_cpu(nr))) {
+			for (i = 0; i < sdb.count; i++) {
+				sibling_yi = YUIHA_I(siblings[i]);
+				sibling_i_data = sibling_yi->i_ext3.i_data;
+
+				sdb.first[i] = &sibling_i_data[EXT3_IND_BLOCK];
+				sdb.last[i] = &sibling_i_data[EXT3_IND_BLOCK + 1];
+			}
+			if (nr) {
+				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 1, &sdb);
+				i_data[EXT3_IND_BLOCK] = 0;
+			}
 		}
 	case EXT3_IND_BLOCK:
 		nr = i_data[EXT3_DIND_BLOCK];
-		if (nr) {
-			ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 2);
-			i_data[EXT3_DIND_BLOCK] = 0;
+		if (test_producer_flg(le32_to_cpu(nr))) {
+			for (i = 0; i < sdb.count; i++) {
+				sibling_yi = YUIHA_I(siblings[i]);
+				sibling_i_data = sibling_yi->i_ext3.i_data;
+
+				sdb.first[i] = &sibling_i_data[EXT3_DIND_BLOCK];
+				sdb.last[i] = &sibling_i_data[EXT3_DIND_BLOCK + 1];
+			}
+			if (nr) {
+				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 2, &sdb);
+				i_data[EXT3_DIND_BLOCK] = 0;
+			}
 		}
 	case EXT3_DIND_BLOCK:
 		nr = i_data[EXT3_TIND_BLOCK];
-		if (nr) {
-			ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 3);
-			i_data[EXT3_TIND_BLOCK] = 0;
+		if (test_producer_flg(le32_to_cpu(nr))) {
+			for (i = 0; i < sdb.count; i++) {
+				sibling_yi = YUIHA_I(siblings[i]);
+				sibling_i_data = sibling_yi->i_ext3.i_data;
+
+				sdb.first[i] = &sibling_i_data[EXT3_TIND_BLOCK];
+				sdb.last[i] = &sibling_i_data[EXT3_TIND_BLOCK + 1];
+			}
+			if (nr) {
+				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 3, &sdb);
+				i_data[EXT3_TIND_BLOCK] = 0;
+			}
 		}
 	case EXT3_TIND_BLOCK:
 		;
@@ -2802,6 +2951,9 @@ do_indirects:
 
 	mutex_unlock(&ei->truncate_mutex);
 	inode->i_mtime = inode->i_ctime = CURRENT_TIME_SEC;
+
+	if (!sdb.phantom)
+		yuiha_detach_version(handle, inode);
 	ext3_mark_inode_dirty(handle, inode);
 
 	/*
@@ -2820,6 +2972,12 @@ out_stop:
 	 */
 	if (inode->i_nlink)
 		ext3_orphan_del(handle, inode);
+
+	for (i = 0; i < sdb.count; i++) {
+		mutex_unlock(&siblings[i]->i_mutex);
+		ext3_mark_inode_dirty(handle, siblings[i]);
+		iput(siblings[i]);
+	}
 
 	ext3_journal_stop(handle);
 	return;
@@ -3205,6 +3363,8 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 			yi->i_child_ino = le32_to_cpu(yuiha_raw_inode->i_child_ino);
 			yi->i_child_generation =
 					le32_to_cpu(yuiha_raw_inode->i_child_generation);
+
+			yi->i_vtree_nlink = le16_to_cpu(yuiha_raw_inode->i_vtree_nlink);
 		} else {
 			inode->i_fop = &ext3_file_operations;
 		}
@@ -3378,6 +3538,8 @@ again:
 
 		yuiha_raw_inode->i_child_ino = cpu_to_le32(yi->i_child_ino);
 		yuiha_raw_inode->i_child_generation = cpu_to_le32(yi->i_child_generation);
+
+		yuiha_raw_inode->i_vtree_nlink = cpu_to_le16(yi->i_vtree_nlink);
 	}
 
 	BUFFER_TRACE(bh, "call ext3_journal_dirty_metadata");

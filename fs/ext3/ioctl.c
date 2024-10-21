@@ -17,6 +17,8 @@
 #include <linux/compat.h>
 #include <asm/uaccess.h>
 
+#include "namei.h"
+
 long ext3_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct inode *inode = filp->f_dentry->d_inode;
@@ -274,6 +276,27 @@ group_extend_out:
 			err = err2;
 group_add_out:
 		mnt_drop_write(filp->f_path.mnt);
+		return err;
+	}
+	case YUIHA_IOC_DEL_VERSION: {
+		handle_t *handle = NULL;
+		int err = 0;
+
+		mutex_lock(&inode->i_mutex);
+		err = mnt_want_write(filp->f_path.mnt);
+		if (err)
+			return err;
+
+		handle = ext3_journal_start(inode, EXT3_DELETE_TRANS_BLOCKS(inode->i_sb));
+		if (IS_ERR(handle))
+			return PTR_ERR(handle);
+
+		err = yuiha_delete_version(handle, filp, arg);
+
+		ext3_journal_stop(handle);
+		mutex_unlock(&inode->i_mutex);
+		mnt_drop_write(filp->f_path.mnt);
+
 		return err;
 	}
 

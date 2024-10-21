@@ -160,13 +160,18 @@ $ sudo mke2fs -t ext3 -I 256 -b 4096 /dev/loop0
 $ sudo mount -t yuiha /dev/loop0 ./yuiha_mnt
 $ sudo chown master ./yuiha_mnt
 $ echo fugafuga >> yuiha_mnt/hoge
-$ yutil --snapshot=./yuiha_mnt/hoge
+$ yutil vc --path=./yuiha_mnt/hoge
 $ echo mogemoge >> yuiha_mnt/hoge
+$ cat yuiha_mnt/hoge
+fugafuga
+mogemoge
+$ yutil cat -o --path=yuiha_mnt/hoge
+fugafuga
 ```
 
-`yuiha_util` command command repository is https://github.com/sai-lab/YuihaFS-util
+`yuitil` command command repository is https://github.com/higuruchi/yutil
 
-### Cheik if backingstore state is correct
+### Check if backingstore state is correct
 
 Block number and i-node number change depending on execution time
 

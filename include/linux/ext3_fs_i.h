@@ -163,6 +163,8 @@ struct yuiha_inode_info {
 	__u32 i_child_ino;
 	__u32 i_child_generation;
 
+	__u16 i_vtree_nlink;
+
 	struct inode *parent_inode;
 };
 
