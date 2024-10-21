@@ -2974,7 +2974,7 @@ out_stop:
 		ext3_orphan_del(handle, inode);
 
 	for (i = 0; i < sdb.count; i++) {
-		mutex_unlock(&siblings[sdb.count]->i_mutex);
+		mutex_unlock(&siblings[i]->i_mutex);
 		ext3_mark_inode_dirty(handle, siblings[i]);
 		iput(siblings[i]);
 	}
