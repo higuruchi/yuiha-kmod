@@ -2460,7 +2460,7 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
 			int i, offset = p - first, sibling_shared_count = 0;
 			__le32 *offset_p, *first_shared, sibling_nr;
 
-			// if the producer flag is down
+			// if the producer flag is set
 			if (test_producer_flg(le32_to_cpu(*p))) {
 				if (sdb->count == 1) {
 					if (!test_producer_flg(le32_to_cpu(*(sdb->first[0] + offset)))) {
@@ -2576,7 +2576,7 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 						 __le32 *first, __le32 *last, int depth,
 						 struct sibling_datablock *sdb)
 {
-	ext3_fsblk_t nr;
+	ext3_fsblk_t nr, sibling_nr;
 	__le32 *p;
 	int i;
 
@@ -2586,15 +2586,17 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 	// forst of producer flag is unset 
 	if (depth--) {
 		struct buffer_head *bh, *sibling_bh[10];
-		int addr_per_block = EXT3_ADDR_PER_BLOCK(inode->i_sb);
+		int addr_per_block = EXT3_ADDR_PER_BLOCK(inode->i_sb), offset, ind_free = 1;
+		__le32 *offset_p;
+
 		p = last;
 		while (--p >= first) {
 			if (!test_producer_flg(le32_to_cpu(*p)))
 				continue;
 
 			if (sdb && sdb->count == 1) {
-				int offset = last - p;
-				__le32 *offset_p = sdb->last[0] - offset;
+				offset = last - p;
+				offset_p = sdb->last[0] - offset;
 
 				if (!test_producer_flg(le32_to_cpu(*offset_p))) {
 					*offset_p = *p;
@@ -2624,7 +2626,12 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 				.count = sdb->count,
 			};
 			for (i = 0; i < sdb->count; i++) {
-				sibling_bh[i] = sb_bread(inode->i_sb, sdb->first[i]);
+				offset_p = sdb->last[i] - offset;
+				sibling_nr = clear_producer_flg(le32_to_cpu(*offset_p));
+				if (sibling_nr == nr)
+					ind_free = 0;
+
+				sibling_bh[i] = sb_bread(inode->i_sb, sibling_nr);
 				next_sdb.first[i] = (__le32 *)sibling_bh[i]->b_data;
 				next_sdb.last[i] = (__le32 *)sibling_bh[i]->b_data + addr_per_block;
 			}
@@ -2636,9 +2643,6 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 						 (__le32*)bh->b_data + addr_per_block,
 						 depth, &next_sdb);
 			sdb->phantom = next_sdb.phantom;
-			if (!sdb->phantom) {
-
-			}
 
 			/*
 			 * We've probably journalled the indirect block several
@@ -2659,7 +2663,8 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 			 * revoke records must be emitted *before* clearing
 			 * this block's bit in the bitmaps.
 			 */
-			ext3_forget(handle, 1, inode, bh, bh->b_blocknr);
+			if (!sdb->phantom || ind_free)
+				ext3_forget(handle, 1, inode, bh, bh->b_blocknr);
 
 			/*
 			 * Everything below this this pointer has been
@@ -2685,7 +2690,8 @@ static void ext3_free_branches(handle_t *handle, struct inode *inode,
 			}
 
 
-			ext3_free_blocks(handle, inode, nr, 1);
+			if (!sdb->phantom || ind_free)
+				ext3_free_blocks(handle, inode, nr, 1);
 
 			if (parent_bh) {
 				/*
@@ -2910,7 +2916,8 @@ do_indirects:
 			}
 			if (nr) {
 				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 1, &sdb);
-				i_data[EXT3_IND_BLOCK] = 0;
+				if (!sdb.phantom)
+					i_data[EXT3_IND_BLOCK] = 0;
 			}
 		}
 	case EXT3_IND_BLOCK:
@@ -2926,6 +2933,8 @@ do_indirects:
 			if (nr) {
 				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 2, &sdb);
 				i_data[EXT3_DIND_BLOCK] = 0;
+				if (!sdb.phantom)
+					i_data[EXT3_IND_BLOCK] = 0;
 			}
 		}
 	case EXT3_DIND_BLOCK:
@@ -2941,6 +2950,8 @@ do_indirects:
 			if (nr) {
 				ext3_free_branches(handle, inode, NULL, &nr, &nr+1, 3, &sdb);
 				i_data[EXT3_TIND_BLOCK] = 0;
+				if (!sdb.phantom)
+					i_data[EXT3_IND_BLOCK] = 0;
 			}
 		}
 	case EXT3_TIND_BLOCK:
