@@ -169,11 +169,11 @@ $ yutil cat -o --path=yuiha_mnt/hoge
 fugafuga
 ```
 
-`yuitil` command command repository is https://github.com/higuruchi/yutil
+`yutil` command command repository is https://github.com/higuruchi/yutil
 
 ### Check if backingstore state is correct
 
-Block number and i-node number change depending on execution time
+Block number and i-node number is different depending on execution time
 
 ```bash
 # Show group discripter of group0
