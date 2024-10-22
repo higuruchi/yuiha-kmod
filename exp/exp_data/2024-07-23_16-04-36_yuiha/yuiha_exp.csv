@@ -1,0 +1,5 @@
+date,mode,size,count,ss_span,fs,before_img_size,after_img_size,diff_img_size,mean_write_bw
+2024-07-23_16-04-36,append,200KB,100,1,yuiha,309580,330912,21332,
+2024-07-23_16-04-36,append,200KB,100,2,yuiha,330912,335052,4140,
+2024-07-23_16-04-36,append,200KB,100,5,yuiha,335052,339040,3988,
+2024-07-23_16-04-36,append,200KB,100,10,yuiha,339040,344404,5364,
