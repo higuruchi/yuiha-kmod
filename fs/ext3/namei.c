@@ -2437,6 +2437,17 @@ int yuiha_drop_vtree_nlink(struct inode *inode)
 	return yi->i_vtree_nlink;
 }
 
+int yuiha_inc_vtree_nlink(struct inode *inode)
+{
+	struct yuiha_inode_info *yi = YUIHA_I(inode);
+
+	//mutex_lock(&inode->i_mutex);
+	yi->i_vtree_nlink++;
+	//mutex_unlock(&inode->i_mutex);
+	
+	return yi->i_vtree_nlink;
+}
+
 int yuiha_detach_version(handle_t *handle, struct inode *inode)
 {
 	struct yuiha_inode_info *yi = YUIHA_I(inode),
@@ -3098,8 +3109,10 @@ static int ext3_link (struct dentry * old_dentry,
 		struct inode * dir, struct dentry *dentry)
 {
 	handle_t *handle;
-	struct inode *inode = old_dentry->d_inode;
+	struct inode *inode = old_dentry->d_inode,
+							 *root_version_inode;
 	int err, retries = 0;
+	struct yuiha_inode_info *yi = YUIHA_I(inode);
 
 	if (inode->i_nlink >= EXT3_LINK_MAX)
 		return -EMLINK;
@@ -3125,6 +3138,20 @@ retry:
 
 	err = ext3_add_entry(handle, dentry, inode);
 	if (!err) {
+		if (ext3_judge_yuiha(dir->i_sb)) {
+			root_version_inode = yuiha_trace_root(inode);
+
+			if (root_version_inode && inode->i_ino != root_version_inode->i_ino) {
+				mutex_lock(&root_version_inode->i_mutex);
+				yuiha_inc_vtree_nlink(root_version_inode);
+				mutex_unlock(&root_version_inode->i_mutex);
+
+				ext3_mark_inode_dirty(handle, root_version_inode);
+				iput(root_version_inode);
+			} else {
+				yuiha_inc_vtree_nlink(inode);
+			}
+		}
 		ext3_mark_inode_dirty(handle, inode);
 		d_instantiate(dentry, inode);
 	} else {
@@ -3135,6 +3162,71 @@ retry:
 	if (err == -ENOSPC && ext3_should_retry_alloc(dir->i_sb, &retries))
 		goto retry;
 	return err;
+}
+
+int _yuiha_vlink(struct dentry *old_dentry, struct inode *dir,
+		struct dentry *new_dentry)
+{
+	struct inode *inode = old_dentry->d_inode;
+	int error, retries = 0;
+	handle_t *handle;
+
+	if (!inode)
+		return -ENOENT;
+
+	if (dir->i_sb != inode->i_sb)
+		return -EXDEV;
+
+	if (IS_APPEND(inode) || IS_IMMUTABLE(inode))
+		return -EPERM;
+	if (S_ISDIR(inode->i_mode))
+		return -EPERM;
+
+	mutex_lock(&inode->i_mutex);
+	vfs_dq_init(dir);
+	error = ext3_link(old_dentry, dir, new_dentry);
+	mutex_unlock(&inode->i_mutex);
+
+	return error;
+}
+
+
+int yuiha_vlink(struct file *filp, const char __user *newname)
+{
+	struct dentry *new_dentry;
+	struct nameidata nd;
+	struct inode *inode = filp->f_dentry->d_inode;
+	int error;
+	char *to;
+
+	error = user_path_parent(AT_FDCWD, newname, &nd, &to);
+	if (error)
+		goto out;
+	error = -EXDEV;
+	if (filp->f_vfsmnt != nd.path.mnt)
+		goto out_release;
+	new_dentry = lookup_create(&nd, 0);
+	error = PTR_ERR(new_dentry);
+	if (IS_ERR(new_dentry))
+		goto out_unlock;
+	error = mnt_want_write(nd.path.mnt);
+	if (error)
+		goto out_dput;
+	// error = security_path_link(filp->f_dentry, &nd.path, new_dentry);
+	// if (error)
+	// 	goto out_drop_write;
+	error = _yuiha_vlink(filp->f_dentry, nd.path.dentry->d_inode, new_dentry);
+out_drop_write:
+	mnt_drop_write(nd.path.mnt);
+out_dput:
+	dput(new_dentry);
+out_unlock:
+	mutex_unlock(&nd.path.dentry->d_inode->i_mutex);
+out_release:
+	path_put(&nd.path);
+	putname(to);
+out:
+	return error;
 }
 
 #define PARENT_INO(buffer) \
