@@ -2629,11 +2629,14 @@ int yuiha_delete_version(handle_t *handle,
 		ext3_update_dx_flag(dir);
 		ext3_mark_inode_dirty(handle, dir);
 
-		drop_nlink(deleted_inode);
+		if (deleted_inode->i_nlink == 1)
+			drop_nlink(deleted_inode);
+
 		vtree_nlink = yuiha_drop_vtree_nlink(root_version_inode);
 		if (!vtree_nlink) {
 			// TODO: Free all versions
 		}
+		mark_inode_dirty(root_version_inode);
 		iput(root_version_inode);
 	}
 
