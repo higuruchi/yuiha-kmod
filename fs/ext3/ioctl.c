@@ -299,7 +299,9 @@ group_add_out:
 
 		return err;
 	}
-
+	case YUIHA_IOC_LINK_VERSION: {
+		return yuiha_vlink(filp, (char __user *) arg);
+	}
 
 	default:
 		return -ENOTTY;
