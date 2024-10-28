@@ -2594,34 +2594,42 @@ int yuiha_delete_version(handle_t *handle,
 	struct super_block *sb = dir->i_sb;
 	unsigned long deleted_version_ino = filp->f_dentry->d_inode->i_ino;
 	int retval, vtree_nlink;
-
 	struct ext3_iloc iloc;
+
+	deleted_inode = filp->f_dentry->d_inode;
+	yi = YUIHA_I(deleted_inode);
 
 	if (IS_DIRSYNC(dir))
 		handle->h_sync = 1;
+
+	if (!yi->i_parent_ino) {
+		return -EPERM;
+	}
 
 	retval = -ENOENT;
 	bh = ext3_find_entry(dir, &filp->f_dentry->d_name, &de);
 	if (!bh)
 		goto end_delete_version;
 
-	deleted_inode = filp->f_dentry->d_inode;
 	ext3_reserve_inode_write(handle, deleted_inode, &iloc);
 
 	yuiha_detatch_parent(deleted_inode);
 	drop_nlink(deleted_inode);
 
 	if (le32_to_cpu(de->inode) == deleted_version_ino) {
+		root_version_inode = yuiha_trace_root(deleted_inode);
+		if (!root_version_inode)
+			goto end_delete_version;
+
 		retval = ext3_delete_entry(handle, dir, de, bh);
 		if (retval)
 			goto end_delete_version;
+
 		dir->i_ctime = dir->i_mtime = CURRENT_TIME_SEC;
 		ext3_update_dx_flag(dir);
 		ext3_mark_inode_dirty(handle, dir);
 
 		drop_nlink(deleted_inode);
-
-		root_version_inode = yuiha_trace_root(deleted_inode);
 		vtree_nlink = yuiha_drop_vtree_nlink(root_version_inode);
 		if (!vtree_nlink) {
 			// TODO: Free all versions
