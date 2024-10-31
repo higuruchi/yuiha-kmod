@@ -2046,6 +2046,7 @@ retry:
 	err = PTR_ERR(inode);
 	if (!IS_ERR(inode)) {
 		if (S_ISREG(inode->i_mode) && ext3_judge_yuiha(dir->i_sb)) {
+			inc_nlink(inode);
 			yi = YUIHA_I(inode);
 			yuiha_sibling_link_self(handle, yi);
 
