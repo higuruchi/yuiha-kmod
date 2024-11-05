@@ -1041,9 +1041,6 @@ static struct dentry *ext3_lookup(struct inode * dir,
 	struct ext3_dir_entry_2 * de;
 	struct buffer_head * bh;
 	struct yuiha_inode_info *yi, *search_yi;
-	unsigned long parent_hash = dentry->d_name.hash,
-								search_hash = dentry->d_name.hash,
-								hash = dentry->d_name.hash;
 	struct dentry *parent = nd->path.dentry,
 								*dentry_found = NULL,
 								*new_version;
@@ -1070,6 +1067,7 @@ static struct dentry *ext3_lookup(struct inode * dir,
 		//dentry->d_op = &dentry_operations;
 
 		if (S_ISREG(inode->i_mode)) {
+			unsigned long search_hash = dentry->d_name.hash;
 			yi = YUIHA_I(inode);
 
 			if ((open_flag & O_VSEARCH) && (open_flag & O_CREAT)) {
@@ -1113,6 +1111,8 @@ static struct dentry *ext3_lookup(struct inode * dir,
 				// namei flag values are different. 
 				// Details are descriped in open_to_namei_flags function.
 
+				unsigned long parent_hash = dentry->d_name.hash;
+
 				parent_hash = partial_name_hash(parent_hash, yi->i_parent_generation);
 				parent_hash = partial_name_hash(parent_hash, yi->i_parent_ino);
 				dentry->d_name.hash = end_name_hash(parent_hash);
@@ -1120,11 +1120,8 @@ static struct dentry *ext3_lookup(struct inode * dir,
 
 				if (dentry_found)
 					parent_inode = dentry_found->d_inode;
-				else {
-					parent_inode = ilookup(inode->i_sb, yi->i_parent_ino);
-					if (!parent_inode)
-						parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
-				}
+				else
+					parent_inode = yuiha_ilookup(inode->i_sb, yi->i_parent_ino);
 				iput(inode);
 
 				// if open file with writable mode, create a new snapshot
@@ -1137,6 +1134,21 @@ static struct dentry *ext3_lookup(struct inode * dir,
 
 				inode = parent_inode;
 				goto dentry_cache_not_exists;
+			}
+
+			if (yi->i_child_ino && acc_mode) {
+				unsigned long hash = dentry->d_name.hash;
+
+				yuiha_create_snapshot(dentry->d_parent, inode, dentry);
+
+				hash = partial_name_hash(hash, inode->i_generation);
+				hash = partial_name_hash(hash, inode->i_ino);
+				dentry->d_name.hash = end_name_hash(hash);
+				dentry_found = d_lookup(parent, &dentry->d_name);
+				if (dentry_found) {
+					iput(inode);
+					return dentry_found;
+				}
 			}
 
 			// if O_PARENT O_VSEARCH flag is not set
@@ -1153,6 +1165,7 @@ static struct dentry *ext3_lookup(struct inode * dir,
 					yi->parent_inode = ext3_iget(dir->i_sb, yi->i_parent_ino);
 			}
 
+			unsigned long hash = dentry->d_name.hash;
 			hash = partial_name_hash(hash, inode->i_generation);
 			hash = partial_name_hash(hash, inode->i_ino);
 			dentry->d_name.hash = end_name_hash(hash);
@@ -3210,6 +3223,7 @@ int yuiha_vlink(struct file *filp, const char __user *newname)
 	struct inode *inode = filp->f_dentry->d_inode;
 	int error;
 	char *to;
+	unsigned long hash;
 
 	error = user_path_parent(AT_FDCWD, newname, &nd, &to);
 	if (error)
@@ -3217,6 +3231,11 @@ int yuiha_vlink(struct file *filp, const char __user *newname)
 	error = -EXDEV;
 	if (filp->f_vfsmnt != nd.path.mnt)
 		goto out_release;
+
+	hash = nd.last.hash;
+	hash = partial_name_hash(hash, inode->i_generation);
+	hash = partial_name_hash(hash, inode->i_ino);
+	nd.last.hash = end_name_hash(hash);
 	new_dentry = lookup_create(&nd, 0);
 	error = PTR_ERR(new_dentry);
 	if (IS_ERR(new_dentry))
