@@ -1,5 +1,7 @@
 # YuihaFS
 
+We designed and implemented new filesystem with novel snapshot function called YuihaFS. YuihaFS supports to create fine-grained snapshots; thus, YuihaFS allows users and applications to create a snapshot for each file at any time. Each file snapshot has a parent-child relationship, and each file snapshot is called a version. This allows users and applications to freely set whether creating a version or not and how often to create versions. Consequently, the users and applications can create a version depending on the importance of the file. Therefore, the necessary versions are only retained, and the disk usage can be reduced.
+
 ## Enviroment
 
 - Distribution == Ubuntu10.04
