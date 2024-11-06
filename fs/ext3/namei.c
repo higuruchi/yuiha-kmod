@@ -1125,7 +1125,7 @@ static struct dentry *ext3_lookup(struct inode * dir,
 				iput(inode);
 
 				// if open file with writable mode, create a new snapshot
-				if (acc_mode)
+				if (nd->intent.open.flags && acc_mode)
 					new_version =
 							yuiha_create_snapshot(dentry->d_parent, parent_inode, dentry);
 
@@ -1136,7 +1136,7 @@ static struct dentry *ext3_lookup(struct inode * dir,
 				goto dentry_cache_not_exists;
 			}
 
-			if (yi->i_child_ino && acc_mode) {
+			if (yi->i_child_ino && nd->intent.open.flags && acc_mode) {
 				unsigned long hash = dentry->d_name.hash;
 
 				yuiha_create_snapshot(dentry->d_parent, inode, dentry);
