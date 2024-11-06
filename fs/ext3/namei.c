@@ -2120,11 +2120,11 @@ retry:
 }
 
 static int yuiha_copy_inode_info(
-		struct yuiha_inode_info *dst_yuiha_ei,
-		struct yuiha_inode_info *src_yuiha_ei)
+		struct yuiha_inode_info *dst_yi,
+		struct yuiha_inode_info *src_yi)
 {
-	struct ext3_inode_info *dst_ext3_ei = &dst_yuiha_ei->i_ext3,
-												 *src_ext3_ei = &src_yuiha_ei->i_ext3;
+	struct ext3_inode_info *dst_ext3_ei = &dst_yi->i_ext3,
+												 *src_ext3_ei = &src_yi->i_ext3;
 	struct inode *dst_inode = &dst_ext3_ei->vfs_inode,
 							 *src_inode = &src_ext3_ei->vfs_inode;
 	
@@ -2138,7 +2138,8 @@ static int yuiha_copy_inode_info(
 	dst_ext3_ei->i_state = EXT3_STATE_NEW;
 	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
 	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
-	
+	dst_yi->i_vtree_nlink = src_yi->i_vtree_nlink;
+
 	dst_inode->i_mode = src_inode->i_mode;
 	dst_inode->i_uid = src_inode->i_uid;
 	dst_inode->i_gid = src_inode->i_gid;
