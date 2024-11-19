@@ -17,7 +17,7 @@
 #include <linux/compat.h>
 #include <asm/uaccess.h>
 
-#include "namei.h"
+#include "yuiha.h"
 
 long ext3_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
@@ -301,6 +301,13 @@ group_add_out:
 	}
 	case YUIHA_IOC_LINK_VERSION: {
 		return yuiha_vlink(filp, (char __user *) arg);
+	}
+	case YUIHA_IOC_STAT_VERSION: {
+		struct kstat stat;
+		struct timespec vtime;
+
+		yuiha_getattr(filp, &stat, &vtime);
+		return cp_yuiha_stat(&stat, &vtime, (struct yuiha_stat __user *) arg);
 	}
 
 	default:

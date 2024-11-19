@@ -45,8 +45,7 @@
 #include "xattr.h"
 #include "acl.h"
 #include "super.h"
-#include "yuiha_buffer_head.h"
-#include "yuiha_flags.h"
+#include "yuiha.h"
 
 /*
  * define how far ahead to read directories while searching them.
@@ -2139,6 +2138,7 @@ static int yuiha_copy_inode_info(
 	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
 	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
 	dst_yi->i_vtree_nlink = src_yi->i_vtree_nlink;
+	dst_yi->i_vtime = CURRENT_TIME_SEC;
 
 	dst_inode->i_mode = src_inode->i_mode;
 	dst_inode->i_uid = src_inode->i_uid;
