@@ -43,6 +43,7 @@
 #include "super.h"
 #include "yuiha_buffer_head.h"
 #include "namei.h"
+#include "yuiha.h"
 
 #include <linux/journal-head.h>
 
@@ -3376,6 +3377,9 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 					le32_to_cpu(yuiha_raw_inode->i_child_generation);
 
 			yi->i_vtree_nlink = le16_to_cpu(yuiha_raw_inode->i_vtree_nlink);
+
+			yi->i_vtime.tv_sec = (signed)le32_to_cpu(yuiha_raw_inode->i_vtime);
+			yi->i_vtime.tv_nsec = 0;
 		} else {
 			inode->i_fop = &ext3_file_operations;
 		}
@@ -3551,6 +3555,8 @@ again:
 		yuiha_raw_inode->i_child_generation = cpu_to_le32(yi->i_child_generation);
 
 		yuiha_raw_inode->i_vtree_nlink = cpu_to_le16(yi->i_vtree_nlink);
+
+		yuiha_raw_inode->i_vtime = cpu_to_le32(yi->i_vtime.tv_sec);
 	}
 
 	BUFFER_TRACE(bh, "call ext3_journal_dirty_metadata");
@@ -3703,6 +3709,41 @@ err_out:
 	return error;
 }
 
+void yuiha_getattr(struct file *filp, struct kstat *stat,
+		struct timespec *vtime)
+{
+	struct inode *inode = filp->f_dentry->d_inode;
+	struct yuiha_inode_info *yi = YUIHA_I(inode);
+
+	generic_fillattr(inode, stat);
+	*vtime = yi->i_vtime;
+
+	return;
+}
+
+int cp_yuiha_stat(struct kstat *stat, struct timespec *vtime,
+		struct yuiha_stat __user *ystat_buf)
+{
+	struct yuiha_stat tmp;
+
+	memset(&tmp, 0, sizeof(struct yuiha_stat));
+	tmp.st_dev = old_encode_dev(stat->dev);
+	tmp.st_ino = stat->ino;
+	if (sizeof(tmp.st_ino) < sizeof(stat->ino) && tmp.st_ino != stat->ino)
+		return -EOVERFLOW;
+	tmp.st_mode = stat->mode;
+	tmp.st_nlink = stat->nlink;
+	if (tmp.st_nlink != stat->nlink)
+		return -EOVERFLOW;
+	SET_UID(tmp.st_uid, stat->uid);
+	SET_GID(tmp.st_gid, stat->gid);
+	tmp.st_size = stat->size;
+	tmp.st_atime = stat->atime.tv_sec;
+	tmp.st_mtime = stat->mtime.tv_sec;
+	tmp.st_ctime = stat->ctime.tv_sec;
+	tmp.st_vtime = vtime->tv_sec;
+	return copy_to_user(ystat_buf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
+}
 
 /*
  * How many blocks doth make a writepage()?
