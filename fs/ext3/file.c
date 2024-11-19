@@ -27,7 +27,7 @@
 #include "xattr.h"
 #include "acl.h"
 #include "namei.h"
-#include "yuiha_flags.h"
+#include "yuiha.h"
 
 /*
  * Called when an inode is released. Note that this is different

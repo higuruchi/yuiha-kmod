@@ -41,7 +41,6 @@
 #include "xattr.h"
 #include "acl.h"
 #include "super.h"
-#include "yuiha_buffer_head.h"
 #include "namei.h"
 #include "yuiha.h"
 

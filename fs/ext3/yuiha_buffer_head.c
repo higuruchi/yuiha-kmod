@@ -23,7 +23,7 @@
 #include <linux/bit_spinlock.h>
 #include <linux/ext3_jbd.h>
 #include <linux/journal-head.h>
-#include "yuiha_buffer_head.h"
+#include "yuiha.h"
 
 static int __yuiha_block_prepare_write(
 		struct inode *inode, struct page *page, struct page *parent_page, 

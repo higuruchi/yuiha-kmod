@@ -17,7 +17,6 @@
 #include <linux/compat.h>
 #include <asm/uaccess.h>
 
-#include "namei.h"
 #include "yuiha.h"
 
 long ext3_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
