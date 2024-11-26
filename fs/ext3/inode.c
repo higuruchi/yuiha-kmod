@@ -3163,6 +3163,10 @@ void ext3_set_inode_flags(struct inode *inode)
 		inode->i_flags |= S_NOATIME;
 	if (flags & EXT3_DIRSYNC_FL)
 		inode->i_flags |= S_DIRSYNC;
+	if (flags & YUIHA_ROOT_VERSION_FL)
+		inode->i_flags |= S_ROOT_VERSION;
+	if (flags & YUIHA_PHANTOM_ROOT_VERSION_FL)
+		inode->i_flags |= S_PHANTOM_ROOT_VERSION;
 }
 
 /* Propagate flags from i_flags to EXT3_I(inode)->i_flags */
@@ -3182,6 +3186,10 @@ void ext3_get_inode_flags(struct ext3_inode_info *ei)
 		ei->i_flags |= EXT3_NOATIME_FL;
 	if (flags & S_DIRSYNC)
 		ei->i_flags |= EXT3_DIRSYNC_FL;
+	if (flags & S_ROOT_VERSION)
+		ei->i_flags |= YUIHA_ROOT_VERSION_FL;
+	if (flags & S_PHANTOM_ROOT_VERSION)
+		ei->i_flags |= YUIHA_PHANTOM_ROOT_VERSION_FL;
 }
 
 struct inode *ext3_iget(struct super_block *sb, unsigned long ino)

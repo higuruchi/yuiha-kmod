@@ -85,16 +85,16 @@ static int yuiha_readversion(struct file *filp,
 	unsigned int version_list_pos = (int)filp->private_data,
 							 ret = 0, error, type = 0;
 
-	// if search parent version inode
+	// version_list_pos is initial position
 	if (!version_list_pos) {
 		type = DT_PARENT;
-		if (yi->i_parent_ino) {
+		if (!(inode->i_flags & S_ROOT_VERSION)) {
 			next_inode = ilookup(inode->i_sb, yi->i_parent_ino);
 			if (!next_inode)
 				next_inode = ext3_iget(inode->i_sb, yi->i_parent_ino);
 			next_yi = YUIHA_I(next_inode);
 
-			if (!next_yi->i_parent_ino)
+			if (next_inode->i_flags & S_ROOT_VERSION)
 				type |= DT_VROOT;
 
 			error = filldir(buf, "", 0, 0, yi->i_parent_ino, type);

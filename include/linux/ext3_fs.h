@@ -174,7 +174,9 @@ struct ext3_group_desc
 #define EXT3_NOTAIL_FL			0x00008000 /* file tail should not be merged */
 #define EXT3_DIRSYNC_FL			0x00010000 /* dirsync behaviour (directories only) */
 #define EXT3_TOPDIR_FL			0x00020000 /* Top of directory hierarchies*/
-#define YUIHA_PHANTOM_FS		0x00100000 /* Phantom version */
+#define YUIHA_PHANTOM_VERSION_FL	0x00100000 /* Phantom version */
+#define YUIHA_ROOT_VERSION_FL		0x00200000 /* root version */
+#define YUIHA_PHANTOM_ROOT_VERSION_FL	0x00400000 /* phantom root version */
 #define EXT3_RESERVED_FL		0x80000000 /* reserved for ext3 lib */
 
 #define EXT3_FL_USER_VISIBLE		0x0003DFFF /* User visible flags */

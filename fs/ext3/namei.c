@@ -2038,10 +2038,13 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode,
 		struct nameidata *nd)
 {
 	handle_t *handle;
-	struct inode * inode;
+	struct inode *inode, *new_version_inode;
 	int err, retries = 0;
 	unsigned long hash = dentry->d_name.hash;
 	struct yuiha_inode_info *yi;
+	struct ext3_inode_info *ei;
+	struct dentry *new_version_dentry;
+	struct super_block *sb = dir->i_sb;
 	ext3_debug("");
 
 retry:
@@ -2076,6 +2079,19 @@ retry:
 		}
 		ext3_set_aops(inode);
 		err = ext3_add_nondir(handle, dentry, inode);
+	}
+
+	if (ext3_judge_yuiha(sb)) {
+		new_version_dentry = yuiha_create_snapshot(dentry->d_parent, inode, dentry);
+		ei = EXT3_I(inode);
+		ei->i_flags |= YUIHA_ROOT_VERSION_FL;
+		ext3_set_inode_flags(inode);
+		err = ext3_mark_inode_dirty(handle, inode);
+
+		new_version_inode = new_version_dentry->d_inode;
+		EXT3_I(new_version_inode)->i_flags |= YUIHA_PHANTOM_ROOT_VERSION_FL;
+		ext3_set_inode_flags(new_version_inode);
+		err = ext3_mark_inode_dirty(handle, new_version_inode);
 	}
 	ext3_journal_stop(handle);
 	if (err == -ENOSPC && ext3_should_retry_alloc(dir->i_sb, &retries))
@@ -2155,6 +2171,8 @@ static int yuiha_copy_inode_info(
 	dst_inode->i_op = src_inode->i_op;
 	dst_inode->i_fop = src_inode->i_fop;
 	dst_inode->i_bdev = src_inode->i_bdev;
+	ext3_set_inode_flags(dst_inode);
+
 	ext3_set_aops(dst_inode);
 	
 	return 0;
@@ -2371,6 +2389,12 @@ struct dentry * __yuiha_create_snapshot(
 		new_version_yi = YUIHA_I(new_version_i);
 
 		yuiha_copy_inode_info(new_version_yi, new_version_target_yi);
+		new_version_target_i->i_flags &= ~S_ROOT_VERSION;
+		EXT3_I(new_version_target_i)->i_flags &= ~YUIHA_ROOT_VERSION_FL;
+		ext3_debug("inode %d %d %d", new_version_target_i->i_ino,
+				new_version_target_i->i_flags & S_ROOT_VERSION,
+				EXT3_I(new_version_target_i)->i_flags & YUIHA_ROOT_VERSION_FL);
+
 		new_version_i->i_nlink = 1;
 		yuiha_add_version_to_tree(handle, new_version_yi, new_version_target_yi);
 		yuiha_buffer_head_shared(new_version_target_i);
@@ -2654,7 +2678,7 @@ int yuiha_delete_version(handle_t *handle,
 	deleted_inode->i_ctime = CURRENT_TIME_SEC;
 	if (!deleted_inode->i_nlink) {
 		ext3_orphan_add(handle, deleted_inode);
-		yi->i_ext3.i_flags |= YUIHA_PHANTOM_FS;
+		yi->i_ext3.i_flags |= YUIHA_PHANTOM_VERSION_FL;
 	}
 
 	ext3_mark_iloc_dirty(handle, deleted_inode, &iloc);
