@@ -364,6 +364,7 @@ struct yuiha_inode {
 	__le32 i_child_ino;
 	__le32 i_child_generation;
 
+	__le32 i_phantom_root_ino;
 	// This member only used at root version
 	__le16 i_vtree_nlink;
 };

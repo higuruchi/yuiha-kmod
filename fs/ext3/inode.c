@@ -3366,6 +3366,7 @@ struct inode *ext3_iget(struct super_block *sb, unsigned long ino)
 			yi->i_child_generation =
 					le32_to_cpu(yuiha_raw_inode->i_child_generation);
 
+			yi->i_phantom_root_ino = le32_to_cpu(yuiha_raw_inode->i_phantom_root_ino);
 			yi->i_vtree_nlink = le16_to_cpu(yuiha_raw_inode->i_vtree_nlink);
 		} else {
 			inode->i_fop = &ext3_file_operations;
@@ -3541,6 +3542,7 @@ again:
 		yuiha_raw_inode->i_child_ino = cpu_to_le32(yi->i_child_ino);
 		yuiha_raw_inode->i_child_generation = cpu_to_le32(yi->i_child_generation);
 
+		yuiha_raw_inode->i_phantom_root_ino = cpu_to_le32(yi->i_phantom_root_ino);
 		yuiha_raw_inode->i_vtree_nlink = cpu_to_le16(yi->i_vtree_nlink);
 	}
 

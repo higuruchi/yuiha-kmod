@@ -2042,7 +2042,6 @@ static int ext3_create (struct inode * dir, struct dentry * dentry, int mode,
 	int err, retries = 0;
 	unsigned long hash = dentry->d_name.hash;
 	struct yuiha_inode_info *yi;
-	struct ext3_inode_info *ei;
 	struct dentry *new_version_dentry;
 	struct super_block *sb = dir->i_sb;
 	ext3_debug("");
@@ -2083,14 +2082,16 @@ retry:
 
 	if (ext3_judge_yuiha(sb)) {
 		new_version_dentry = yuiha_create_snapshot(dentry->d_parent, inode, dentry);
-		ei = EXT3_I(inode);
-		ei->i_flags |= YUIHA_ROOT_VERSION_FL;
+		new_version_inode = new_version_dentry->d_inode;
+
+		EXT3_I(inode)->i_flags |= YUIHA_ROOT_VERSION_FL;
 		ext3_set_inode_flags(inode);
+		YUIHA_I(inode)->i_phantom_root_ino = new_version_inode->i_ino;
 		err = ext3_mark_inode_dirty(handle, inode);
 
-		new_version_inode = new_version_dentry->d_inode;
 		EXT3_I(new_version_inode)->i_flags |= YUIHA_PHANTOM_ROOT_VERSION_FL;
 		ext3_set_inode_flags(new_version_inode);
+		YUIHA_I(new_version_inode)->i_phantom_root_ino = 0;
 		err = ext3_mark_inode_dirty(handle, new_version_inode);
 	}
 	ext3_journal_stop(handle);
@@ -2153,6 +2154,7 @@ static int yuiha_copy_inode_info(
 	dst_ext3_ei->i_state = EXT3_STATE_NEW;
 	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
 	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
+	dst_yi->i_phantom_root_ino = src_yi->i_phantom_root_ino;
 	dst_yi->i_vtree_nlink = src_yi->i_vtree_nlink;
 
 	dst_inode->i_mode = src_inode->i_mode;
