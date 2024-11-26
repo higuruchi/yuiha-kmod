@@ -280,7 +280,7 @@ group_add_out:
 	}
 	case YUIHA_IOC_DEL_VERSION: {
 		handle_t *handle = NULL;
-		int err = 0;
+		int err;
 
 		mutex_lock(&inode->i_mutex);
 		err = mnt_want_write(filp->f_path.mnt);
@@ -301,6 +301,17 @@ group_add_out:
 	}
 	case YUIHA_IOC_LINK_VERSION: {
 		return yuiha_vlink(filp, (char __user *) arg);
+	}
+	case YUIHA_IOC_GET_ROOT: {
+		unsigned int phantom_root_ino;
+		struct inode *phantom_root_inode;
+		int err;
+
+		phantom_root_ino = YUIHA_I(inode)->i_phantom_root_ino;
+		phantom_root_inode = yuiha_ilookup(inode->i_sb, phantom_root_ino);
+		err = put_user(YUIHA_I(phantom_root_inode)->i_child_ino, (int __user *) arg);
+		iput(phantom_root_inode);
+		return err;
 	}
 
 	default:
