@@ -488,19 +488,13 @@ void yuiha_drop_inode(struct inode *inode)
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
-	ext3_debug("inode->i_ino=%d,inode->i_count=%d",
-						inode->i_ino, inode->i_count);
+	ext3_debug("inode->i_ino=%ld", inode->i_ino);
 	generic_drop_inode(inode);
-	ext3_debug("inode->i_ino=%d,inode->i_count=%d",
-						inode->i_ino, inode->i_count);
 	if (parent_inode && ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode)
 					&& is_not_journal_file) {
 	
-		ext3_debug("parent_inode->i_ino=%d,parent_inode->i_count=%d",
-						parent_inode->i_ino, parent_inode->i_count);
+		ext3_debug("parent_inode->i_ino=%ld", parent_inode->i_ino);
 		YUIHA_I(inode)->parent_inode = NULL;
-		ext3_debug("parent_inode->i_ino=%d,parent_inode->i_count=%d\n",
-        parent_inode->i_ino, parent_inode->i_count);
 	}
 }
 

@@ -35,13 +35,6 @@ static int __yuiha_block_prepare_write(
 	unsigned blocksize, bbits;
 	struct buffer_head *bh, *parent_bh, *head, *parent_head,
 										 *wait[2], **wait_bh=wait;
-	struct yuiha_inode_info *yi = YUIHA_I(inode);
-	struct inode *parent_inode = yi->parent_inode;
-	handle_t *handle = NULL;
-
-	struct super_block *sb = inode->i_sb;
-	struct ext3_sb_info *sbi = EXT3_SB(sb);
-
 
 	BUG_ON(!PageLocked(page));
 	BUG_ON(from > PAGE_CACHE_SIZE);
@@ -228,7 +221,7 @@ int yuiha_block_write_begin(struct file *file, struct address_space *mapping,
 		mutex_lock(&parent_inode->i_mutex);
 
 	if (parent_inode && PageShared(page)) {
-		ext3_debug("index=%d", index);
+		ext3_debug("index=%ld", index);
 		parent_ownpage = 1;
 		parent_mapping = parent_inode->i_mapping;
 		parent_page = grab_cache_page_write_begin(parent_mapping, index, flags);

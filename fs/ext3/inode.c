@@ -696,7 +696,6 @@ static int ext3_alloc_branch(handle_t *handle, struct inode *inode,
 	ext3_fsblk_t new_blocks[4];
 	ext3_fsblk_t current_block;
 	struct super_block *sb = inode->i_sb;
-	struct file_system_type *fs_type = sb->s_type;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
@@ -919,7 +918,7 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 	// ncow = ext3_blks_to_allocate(cow_partial, indirect_blks,
 	// 				maxblocks, blocks_to_boundary);
 	ncow = depth - cow_ind_offset;
-	ext3_debug("indirect_blks=%d,ncow=%d,depth=%d,cow_ind_offset=%d,maxblocks%d",
+	ext3_debug("indirect_blks=%d,ncow=%d,depth=%d,cow_ind_offset=%d,maxblocks%ld",
 			indirect_blks, ncow, depth, cow_ind_offset, maxblocks);
 
 	goal = ext3_find_goal(inode, iblock, cow_partial);
@@ -946,21 +945,7 @@ static int yuiha_cow_datablock(handle_t *handle, struct inode *inode,
 	*cow_chain[cow_ind_offset].p = 
 		cpu_to_le32(set_producer_flg(le32_to_cpu(*cow_chain[cow_ind_offset].p)));
 	for (i = cow_ind_offset + 1; i < depth; i++) {
-		ext3_debug("");
-		// if (!i)
-		// 	continue;
-		// if (i == cow_ind_offset) {
-		//   //chain[i] = cow_chain[i];
-		//   *chain_cow[i].p =
-		//     cpu_to_le32(set_producer_flg(le32_to_cpu(*chain_cow[i].p)));
-		//   continue;
-		// }
-
 		__le32 bn = *cow_chain[i].p;
-		ext3_debug("%d", i);
-		ext3_debug("%p", cow_chain[i].bh->b_data);
-		ext3_debug("%p", chain[i].bh->b_data);
-		ext3_debug("%d", cow_chain[i].bh->b_size);
 		memcpy(cow_chain[i].bh->b_data, chain[i].bh->b_data,
 						cow_chain[i].bh->b_size);
 
@@ -1025,7 +1010,6 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	int count = 0;
 	ext3_fsblk_t first_block = 0;
 	struct super_block *sb = inode->i_sb;
-	struct file_system_type *fs_type = sb->s_type;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
 
@@ -1399,7 +1383,6 @@ static int ext3_write_begin(struct file *file, struct address_space *mapping,
 				struct page **pagep, void **fsdata)
 {
 	struct inode *inode = mapping->host;
-	struct ext3_inode_info *ei = EXT3_I(inode);
 	int ret;
 	handle_t *handle;
 	int retries = 0;
@@ -3424,7 +3407,7 @@ static int ext3_do_update_inode(handle_t *handle,
 				struct ext3_iloc *iloc)
 {
 	struct ext3_inode *raw_inode = ext3_raw_inode(iloc);
-	struct yuiha_inode *yuiha_raw_inode = raw_inode;
+	struct yuiha_inode *yuiha_raw_inode = (struct yuiha_inode *)raw_inode;
 	struct ext3_inode_info *ei = NULL;
 	struct yuiha_inode_info *yi = NULL;
 	struct buffer_head *bh = iloc->bh;
