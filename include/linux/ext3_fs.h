@@ -254,22 +254,6 @@ struct ext3_new_group_data {
 #define EXT3_IOC_SETRSVSZ		_IOW('f', 6, long)
 #define YUIHA_IOC_DEL_VERSION		_IOWR('f', 9, unsigned long)
 #define YUIHA_IOC_LINK_VERSION	_IOW('f', 10, char __user *)
-#define YUIHA_IOC_STAT_VERSION	_IOR('f', 11, char __user *)
-
-struct yuiha_stat {
-	unsigned short st_dev;
-	unsigned short st_ino;
-	unsigned short st_mode;
-	unsigned short st_nlink;
-	unsigned short st_uid;
-	unsigned short st_gid;
-	unsigned short st_rdev;
-	unsigned long  st_size;
-	unsigned long  st_atime;
-	unsigned long  st_mtime;
-	unsigned long  st_ctime;
-	unsigned long  st_vtime;
-};
 
 /*
  * ioctl commands in 32 bit emulation
@@ -378,7 +362,6 @@ struct yuiha_inode {
 	__le32 i_child_ino;
 	__le32 i_child_generation;
 
-	__le32 i_vtime;
 	// This member only used at root version
 	__le16 i_vtree_nlink;
 };

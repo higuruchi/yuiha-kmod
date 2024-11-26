@@ -165,7 +165,6 @@ struct yuiha_inode_info {
 
 	__u16 i_vtree_nlink;
 
-	struct timespec i_vtime;
 	struct inode *parent_inode;
 };
 
