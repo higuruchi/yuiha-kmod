@@ -38,3 +38,7 @@ inline __u32 clear_producer_flg(__u32 datablock_number);
 #define O_VERSION 020000000
 #define O_PARENT 040000000
 #define O_VSEARCH 0200000000
+
+#define S_PHANTOM_VERSION	S_PRIVATE
+#define S_ROOT_VERSION S_PRIVATE * 2
+#define S_PHANTOM_ROOT_VERSION S_ROOT_VERSION * 2
