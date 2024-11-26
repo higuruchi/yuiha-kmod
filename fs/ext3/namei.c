@@ -2385,7 +2385,7 @@ struct dentry * __yuiha_create_snapshot(
 		hash = partial_name_hash(hash, new_version_i->i_generation);
 		hash = partial_name_hash(hash, new_version_i->i_ino);
 		new_version->d_name.hash = end_name_hash(hash);
-		ext3_debug("new_version->d_name.hash=%lu", new_version->d_name.hash);
+		ext3_debug("new_version->d_name.hash=%u", new_version->d_name.hash);
 
 		d_splice_alias(new_version_i, new_version);
 		atomic_inc(&new_version_i->i_count);
@@ -2393,8 +2393,7 @@ struct dentry * __yuiha_create_snapshot(
 		dput(new_version);
 	}
 
-	ext3_debug("new_version_i->i_ino=%d,new_version_i->i_count=%d",
-					new_version_i->i_ino, new_version_i->i_count);
+	ext3_debug("new_version_i->i_ino=%u", new_version_i->i_ino);
 	ext3_journal_stop(handle);
 
 	return new_version;
@@ -2406,7 +2405,6 @@ struct dentry * yuiha_create_snapshot(
 				struct dentry *lookup_dentry)
 {
 	struct dentry *new_version;
-	struct address_space *mapping = new_version_target_i->i_mapping;
 	ext3_debug("");
 
 	mutex_lock(&new_version_target_i->i_mutex);
@@ -2605,7 +2603,6 @@ int yuiha_delete_version(handle_t *handle,
 	struct yuiha_inode_info *yi;
 	struct buffer_head *bh;
 	struct ext3_dir_entry_2 *de;
-	struct super_block *sb = dir->i_sb;
 	unsigned long deleted_version_ino = filp->f_dentry->d_inode->i_ino;
 	int retval, vtree_nlink;
 	struct ext3_iloc iloc;
@@ -3137,7 +3134,6 @@ static int ext3_link (struct dentry * old_dentry,
 	struct inode *inode = old_dentry->d_inode,
 							 *root_version_inode;
 	int err, retries = 0;
-	struct yuiha_inode_info *yi = YUIHA_I(inode);
 
 	if (inode->i_nlink >= EXT3_LINK_MAX)
 		return -EMLINK;
@@ -3193,8 +3189,7 @@ int _yuiha_vlink(struct dentry *old_dentry, struct inode *dir,
 		struct dentry *new_dentry)
 {
 	struct inode *inode = old_dentry->d_inode;
-	int error, retries = 0;
-	handle_t *handle;
+	int error;
 
 	if (!inode)
 		return -ENOENT;
@@ -3243,11 +3238,8 @@ int yuiha_vlink(struct file *filp, const char __user *newname)
 	error = mnt_want_write(nd.path.mnt);
 	if (error)
 		goto out_dput;
-	// error = security_path_link(filp->f_dentry, &nd.path, new_dentry);
-	// if (error)
-	// 	goto out_drop_write;
 	error = _yuiha_vlink(filp->f_dentry, nd.path.dentry->d_inode, new_dentry);
-out_drop_write:
+
 	mnt_drop_write(nd.path.mnt);
 out_dput:
 	dput(new_dentry);
