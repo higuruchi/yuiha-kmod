@@ -302,13 +302,6 @@ group_add_out:
 	case YUIHA_IOC_LINK_VERSION: {
 		return yuiha_vlink(filp, (char __user *) arg);
 	}
-	case YUIHA_IOC_STAT_VERSION: {
-		struct kstat stat;
-		struct timespec vtime;
-
-		yuiha_getattr(filp, &stat, &vtime);
-		return cp_yuiha_stat(&stat, &vtime, (struct yuiha_stat __user *) arg);
-	}
 
 	default:
 		return -ENOTTY;

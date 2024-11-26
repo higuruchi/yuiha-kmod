@@ -2138,7 +2138,6 @@ static int yuiha_copy_inode_info(
 	dst_ext3_ei->i_disksize = src_ext3_ei->i_disksize;
 	dst_ext3_ei->i_extra_isize = src_ext3_ei->i_extra_isize;
 	dst_yi->i_vtree_nlink = src_yi->i_vtree_nlink;
-	dst_yi->i_vtime = CURRENT_TIME_SEC;
 
 	dst_inode->i_mode = src_inode->i_mode;
 	dst_inode->i_uid = src_inode->i_uid;
@@ -2147,7 +2146,7 @@ static int yuiha_copy_inode_info(
 	dst_inode->i_size = src_inode->i_size;
 	dst_inode->i_atime = src_inode->i_atime;
 	dst_inode->i_mtime = src_inode->i_mtime;
-	dst_inode->i_ctime = src_inode->i_ctime;
+	dst_inode->i_ctime = CURRENT_TIME_SEC;
 	dst_inode->i_nlink = src_inode->i_nlink;
 	dst_inode->i_blkbits = src_inode->i_blkbits;
 	dst_inode->i_version = src_inode->i_version;
