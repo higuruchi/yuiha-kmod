@@ -424,23 +424,28 @@ no_block:
 }
 
 static Indirect *yuiha_get_branch(struct inode *inode, int depth,
-				int *offsets, Indirect chain[4], int *err)
+				int *offsets, Indirect chain[4], int *err, int *is_shared)
 {
 	struct super_block *sb = inode->i_sb;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
 	Indirect *p = chain;
 	struct buffer_head *bh;
 	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
+	struct ext3_inode_info *ei = EXT3_I(inode);
 
 	ext3_debug("depth=%d", depth);
 
 	*err = 0;
-	struct ext3_inode_info *ei = EXT3_I(inode);
+	if (is_shared)
+		*is_shared = 0;
 	/* i_data is not going away, no lock needed */
 	add_chain (chain, NULL, EXT3_I(inode)->i_data + *offsets);
-	if (S_ISREG(inode->i_mode) && is_not_journal_file)
-		chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
+	if (S_ISREG(inode->i_mode) && is_not_journal_file) {
+		if (is_shared && !test_producer_flg(le32_to_cpu(chain->key)))
+			*is_shared = 1;
 
+		chain->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(chain->key)));
+	}
 	if (!p->key) {
 		ext3_debug("");
 		goto no_block;
@@ -462,6 +467,8 @@ static Indirect *yuiha_get_branch(struct inode *inode, int depth,
 			if (!test_producer_flg(le32_to_cpu(p->key))) {
 				ext3_debug("");
 				set_buffer_shared(bh);
+				if (is_shared)
+					*is_shared = 1;
 			}
 			p->key = cpu_to_le32(clear_producer_flg(le32_to_cpu(p->key)));
 		}
@@ -1011,7 +1018,8 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	ext3_fsblk_t first_block = 0;
 	struct super_block *sb = inode->i_sb;
 	struct ext3_super_block *es = EXT3_SB(sb)->s_es;
-	int is_not_journal_file = es->s_journal_inum != inode->i_ino;
+	int is_not_journal_file = es->s_journal_inum != inode->i_ino,
+			is_shared = 0;
 
 	J_ASSERT(handle != NULL || create == 0);
 	depth = ext3_block_to_path(inode,iblock,offsets,&blocks_to_boundary);
@@ -1020,7 +1028,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		goto out;
 
 	if (ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode) && is_not_journal_file) {
-		partial = yuiha_get_branch(inode, depth, offsets, chain, &err);
+		partial = yuiha_get_branch(inode, depth, offsets, chain, &err, &is_shared);
 	} else {
 		partial = ext3_get_branch(inode, depth, offsets, chain, &err);
 	}
@@ -1030,15 +1038,15 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 	/* Simplest case - block found, no allocation needed */
 	if (!partial) {
 		ext3_debug("");
-		if (ext3_judge_yuiha(sb) && create && S_ISREG(inode->i_mode) && is_not_journal_file) {
-			mutex_lock(&ei->truncate_mutex);
+		if (ext3_judge_yuiha(sb) && create &&
+				S_ISREG(inode->i_mode) && is_not_journal_file && is_shared) {
 			ext3_debug("");
 			yuiha_cow_datablock(handle, inode, iblock, maxblocks,
 							blocks_to_boundary, depth, offsets, chain, bh_result); 
-			mutex_unlock(&ei->truncate_mutex);
 		}
 
-		if (ext3_judge_yuiha(sb) && !create && S_ISREG(inode->i_mode) && is_not_journal_file) {
+		if (ext3_judge_yuiha(sb) && !create
+				&& S_ISREG(inode->i_mode) && is_not_journal_file) {
 			if (!test_producer_flg(*chain[depth - 1].p)) {
 				SetPageShared(bh_result->b_page);
 				ext3_debug();
@@ -1102,7 +1110,7 @@ int ext3_get_blocks_handle(handle_t *handle, struct inode *inode,
 		}
 
 		if (ext3_judge_yuiha(sb) && S_ISREG(inode->i_mode) && is_not_journal_file)
-			partial = yuiha_get_branch(inode, depth, offsets, chain, &err);
+			partial = yuiha_get_branch(inode, depth, offsets, chain, &err, NULL);
 		else
 			partial = ext3_get_branch(inode, depth, offsets, chain, &err);
 
