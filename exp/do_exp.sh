@@ -1,8 +1,8 @@
 #!/bin/bash -x
 
 FS=$1
-COUNT=${2:-100}
-DEV="/dev/vdb"
+COUNT=${2:-10}
+DEV="/dev/sda"
 PART="${DEV}1"
 MOUNT_POINT="/home/${USER}/research"
 EXP_MOUNT_POINT="/home/${USER}/exp_mnt"
@@ -17,13 +17,15 @@ echo ${PASSWORD} | sudo -S ntpdate ntp.nict.jp
 exp_date=`date +"%Y-%m-%d_%H-%M-%S"`
 LOGFILE_PATH="${YUIHA_KMOD_PATH}/exp/exp_data/${exp_date}_${FS}"
 LOGFILE_NAME="${FS}_exp.csv"
+PERF_FILE_NAME="perf.data"
 IO_PATTERN_DIR_PATH="${YUIHA_KMOD_PATH}/exp"
 # Relative path from /home/${USER}
 REL_LOG_FILE_PATH="research/yuiha-kmod/exp/exp_data/${exp_date}_${FS}"
+DEBUG=0
 
 mode=(
-	#seq
-	append
+	seq
+	# append
 )
 
 append_size=(
@@ -34,10 +36,14 @@ append_size=(
 )
 
 seq_size=(
-	500k
-	1000k
-	2000k
-	4000k
+	# 500k
+	# 1000k
+	# 2000k
+	# 4000k
+	8000k
+	16000k
+	32000k
+	64000k
 )
 
 vmemu_size=(
@@ -169,26 +175,32 @@ function seq_write_exp () {
 	local VMSTAT_P_LOG_FILE="${TEST_NAME}_${SEQ_WRITE_SIZE}_${SS_SPAN}_vmstat_p.log"
 	local BLKTRACE_LOG_FILE="${TEST_NAME}_${SEQ_WRITE_SIZE}_${SS_SPAN}_blktrace"
 
-	vmstat 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
-	local vmstat_pid=$!
-	vmstat -p ${PART} 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
-	local vmstat_p_pid=$!
-	echo ${PASSWORD} | sudo -S \
-		blktrace --dev=${PART} --output="${REL_LOG_FILE_PATH}/${BLKTRACE_LOG_FILE}" &
-	local blktrace_pid=$!
+	if [ $DEBUG -ge 1 ]; then
+		vmstat 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
+		local vmstat_pid=$!
+
+		vmstat -p ${PART} 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
+		local vmstat_p_pid=$!
+
+		echo ${PASSWORD} | sudo -S \
+			blktrace --dev=${PART} \
+			--output="${REL_LOG_FILE_PATH}/${BLKTRACE_LOG_FILE}" &
+		local blktrace_pid=$!
+	fi
 
 	local bw_sum=0
 	for i in `seq 1 ${COUNT}`; do
-		local bw=`fio \
-				 --minimal \
-				 --rw=write \
-				 --numjobs=1 \
-				 --bs=${SEQ_WRITE_SIZE} \
-				 --directory=${EXP_MOUNT_POINT} \
-				 --size=${SEQ_WRITE_SIZE} \
-				 --overwrite=1 \
-				 --name="${TEST_NAME}" | \
-				 awk -F ";" 'NR%2==1 {printf "%d", $21 * 1024}'`
+		local bw=`perf record -A -g  -o ${LOGFILE_PATH}/${PERF_FILE_NAME} -- \
+				fio \
+				--minimal \
+				--rw=write \
+				--numjobs=1 \
+				--bs=${SEQ_WRITE_SIZE} \
+				--directory=${EXP_MOUNT_POINT} \
+				--size=${SEQ_WRITE_SIZE} \
+				--overwrite=1 \
+				--name="${TEST_NAME}" | \
+				awk -F ";" 'NR%2==1 {printf "%d", $21 * 1024}'`
 		bw_sum=`echo "scale=6; ${bw} + ${bw_sum}" | bc`
 
 		if [ $((i%SS_SPAN)) -eq 0 ]; then
@@ -201,9 +213,11 @@ function seq_write_exp () {
 		fi
 	done
 
-	echo ${PASSWORD} | sudo -S kill ${blktrace_pid}
-	kill ${vmstat_p_pid}
-	kill ${vmstat_pid}
+	if [ $DEBUG -ge 1 ]; then
+		echo ${PASSWORD} | sudo -S kill ${blktrace_pid}
+		kill ${vmstat_p_pid}
+		kill ${vmstat_pid}
+	fi
 	
 	local mean_bw=`echo "scale=6; ${bw_sum} / ${COUNT}" | bc`
 	echo ${mean_bw}
@@ -222,13 +236,18 @@ function append_write_exp () {
 	local VMSTAT_P_LOG_FILE="${TEST_NAME}_${APPEND_SIZE}_${SS_SPAN}_vmstat_p.log"
 	local BLKTRACE_LOG_FILE="${TEST_NAME}_${APPEND_SIZE}_${SS_SPAN}_blktrace"
 
-	vmstat 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
-	local vmstat_pid=$!
-	vmstat -p ${PART} 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
-	local vmstat_p_pid=$!
-	echo ${PASSWORD} | sudo -S \
-		blktrace --dev=${PART} --output="${REL_LOG_FILE_PATH}/${BLKTRACE_LOG_FILE}" &
-	local blktrace_pid=$!
+	if [ $DEBUG -ge 1 ]; then
+		vmstat 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
+		local vmstat_pid=$!
+
+		vmstat -p ${PART} 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
+		local vmstat_p_pid=$!
+
+		echo ${PASSWORD} | sudo -S \
+			blktrace --dev=${PART} \
+			--output="${REL_LOG_FILE_PATH}/${BLKTRACE_LOG_FILE}" &
+		local blktrace_pid=$!
+	fi
 
 	local bw_sum=0
 	for i in `seq 1 ${COUNT}`; do
@@ -252,11 +271,11 @@ function append_write_exp () {
 		fi
 	done
 
-	echo ${PASSWORD} | sudo -S kill ${blktrace_pid}
-	kill ${vmstat_p_pid}
-	kill ${vmstat_pid}
-	# local mean_bw=`echo "scale=6; ${bw_sum} / ${COUNT}" | bc`
-	# echo ${mean_bw}
+	if [ $DEBUG -ge 1 ]; then
+		echo ${PASSWORD} | sudo -S kill ${blktrace_pid}
+		kill ${vmstat_p_pid}
+		kill ${vmstat_pid}
+	fi
 }
 
 init
