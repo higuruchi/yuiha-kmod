@@ -1,0 +1,3 @@
+date,mode,size,count,ss_span,fs,before_img_size,after_img_size,diff_img_size,mean_write_bw
+2024-12-29_02-37-03,seq,32000k,100,2,yuiha,176196,1779748,1603552,771541882.880000
+2024-12-29_02-37-03,seq,64000k,100,2,yuiha,176196,3382920,3206724,740892846.080000
