@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+
 import sys
 import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib.ticker as ptick
 import numpy as np
+from pathlib import Path
 
 args = sys.argv
 yuiha_exp_data_path = args[1]
@@ -13,14 +16,14 @@ width = 0.15
 yuiha_df = pd.read_csv(yuiha_exp_data_path)
 ext3_df = pd.read_csv(ext3_exp_data_path)
 
-fig_seq = plt.figure(figsize=(5, 10))
+fig_seq = plt.figure(figsize=(7, 10))
 
 # Sequential
 yuiha_seq_df = yuiha_df.query('mode == "seq"')
 ext3_seq_df = ext3_df.query('mode == "seq"')
 
 ss_span = ["ext3", "1", "2", "4", "200"]
-ss_span_label =["ext3", "100%", "50%", "20%", "0%"]
+ss_span_label =["ext3", "100%", "50%", "25%", "0%"]
 
 yuiha_seq_ax = fig_seq.add_subplot(6, 1, (1, 2))
 yuiha_seq_ax.set_title("(a) Sequential write", y=-0.27)
@@ -53,7 +56,12 @@ for i, (s, l, c) in enumerate(zip(ss_span, ss_span_label, colors)):
 yuiha_seq_ax.set_xticks(left + width + 0.1)
 seq_file_size_label = ["8MB", "16MB", "32MB", "64MB"]
 yuiha_seq_ax.set_xticklabels(labels=seq_file_size_label)
-yuiha_seq_ax.legend(loc="upper left")
+yuiha_seq_ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
 
 plt.tight_layout()
-plt.savefig("write_throughput.png", format="png")
+
+fig_file_name="write_throughput-{}-{}.png".format(
+        Path(yuiha_exp_data_path).parent.name,
+        Path(ext3_exp_data_path).parent.name)
+plt.savefig(fig_file_name, format="png")
+print("Generate {}".format(fig_file_name))
