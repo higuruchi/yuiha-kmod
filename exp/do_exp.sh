@@ -1,7 +1,7 @@
 #!/bin/bash -x
 
 FS=$1
-COUNT=${2:-10}
+COUNT=${2:-100}
 DEV="/dev/sda"
 PART="${DEV}1"
 MOUNT_POINT="/home/${USER}/research"
@@ -36,10 +36,13 @@ append_size=(
 )
 
 seq_size=(
+	# For disk usage experiment
 	# 500k
 	# 1000k
 	# 2000k
 	# 4000k
+
+	# For sequential write experiment
 	8000k
 	16000k
 	32000k
@@ -52,9 +55,9 @@ vmemu_size=(
 )
 
 ss_span=(
-	1
-	2
-	4
+	# 1
+	# 2
+	# 4
 	200
 )
 
@@ -176,10 +179,10 @@ function seq_write_exp () {
 	local BLKTRACE_LOG_FILE="${TEST_NAME}_${SEQ_WRITE_SIZE}_${SS_SPAN}_blktrace"
 
 	if [ $DEBUG -ge 1 ]; then
-		vmstat 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
+		vmstat -n 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
 		local vmstat_pid=$!
 
-		vmstat -p ${PART} 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
+		vmstat -p ${PART} -n 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
 		local vmstat_p_pid=$!
 
 		echo ${PASSWORD} | sudo -S \
@@ -190,6 +193,9 @@ function seq_write_exp () {
 
 	local bw_sum=0
 	for i in `seq 1 ${COUNT}`; do
+		# if [ $i -eq 2 ]; then
+		# 	sudo sh -c "echo g > /proc/sysrq-trigger"
+		# fi
 		local bw=`perf record -A -g  -o ${LOGFILE_PATH}/${PERF_FILE_NAME} -- \
 				fio \
 				--minimal \
@@ -199,6 +205,7 @@ function seq_write_exp () {
 				--directory=${EXP_MOUNT_POINT} \
 				--size=${SEQ_WRITE_SIZE} \
 				--overwrite=1 \
+				--end_fsync=1 \
 				--name="${TEST_NAME}" | \
 				awk -F ";" 'NR%2==1 {printf "%d", $21 * 1024}'`
 		bw_sum=`echo "scale=6; ${bw} + ${bw_sum}" | bc`
@@ -237,10 +244,10 @@ function append_write_exp () {
 	local BLKTRACE_LOG_FILE="${TEST_NAME}_${APPEND_SIZE}_${SS_SPAN}_blktrace"
 
 	if [ $DEBUG -ge 1 ]; then
-		vmstat 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
+		vmstat -n 1 >> "${LOGFILE_PATH}/${VMSTAT_LOG_FILE}" &
 		local vmstat_pid=$!
 
-		vmstat -p ${PART} 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
+		vmstat -p ${PART} -n 1 >> "${LOGFILE_PATH}/${VMSTAT_P_LOG_FILE}" &
 		local vmstat_p_pid=$!
 
 		echo ${PASSWORD} | sudo -S \
