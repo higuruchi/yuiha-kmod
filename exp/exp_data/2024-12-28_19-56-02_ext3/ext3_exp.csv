@@ -1,2 +1,0 @@
-date,mode,size,count,ss_span,fs,before_img_size,after_img_size,diff_img_size,mean_write_bw
-2024-12-28_19-56-02,seq,400000k,100,200,ext3,176196,576592,400396,460031784.960000

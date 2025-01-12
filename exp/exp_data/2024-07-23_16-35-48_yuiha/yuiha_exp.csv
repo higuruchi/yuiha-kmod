@@ -1,5 +1,0 @@
-date,mode,size,count,ss_span,fs,before_img_size,after_img_size,diff_img_size,mean_write_bw
-2024-07-23_16-35-48,seq,250k,100,1,yuiha,366004,366004,0,0
-2024-07-23_16-35-48,seq,250k,100,2,yuiha,366004,366004,0,0
-2024-07-23_16-35-48,seq,250k,100,5,yuiha,366004,366004,0,0
-2024-07-23_16-35-48,seq,250k,100,10,yuiha,366004,366004,0,0
