@@ -24,7 +24,6 @@
 *.order
 *.elf
 *.bin
-*.gz
 *.bz2
 *.lzma
 *.patch
